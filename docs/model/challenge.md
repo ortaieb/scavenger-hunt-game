@@ -30,8 +30,8 @@ Each waypoint will have the following information:
 - **challenge_name: text**: display field showing the title of the challenge
 - **challenge_description: text**: description of the challenge, aread to be played, target audiance etc
 - **challenge_moderator: UserId**: contact point for questions and coordination, currently single record, in the future might expand to a set
-- **start_time: datetime**: represents the beginning of the window for the challenge
-- **end_time: datetime**: represents the end of the window for the challenge
+- **planned_start_time: datetime**: represents the planned starting time of the challenge
+- **duration_minutes: uint**: represents the length of the challenge from the actual start time
 - **challenge_type: ChallengeType**:
   - _REC_: recreational, no scoring will be given to the participants. Time range only defines drop-off/pickup times.
   - _COM_: competitive, scoring will be given to waypoints collections in the time range only but challenge can be played outside of time range.
@@ -58,27 +58,50 @@ participants while they play and the audit log.
 
 ### Gameplay
 
+#### Participany View
 While progressing in the challenge, an in-memory copy of the challenge will be kept per user.
 
 A better way to store data should be developed for one of the first phases but from medeling perspective this info should be store in either a compact way in-mem
 or on secondary store.
 
+  Example of participant view
   ```yml
   participant-id: PARTICIPANT-A
   challenge-id: CHALLENGE001
+  actual-start-time: 1970-01-01T00:15:00.000+0000
   current-waypoints:
     waypoint-id: 3
     state: CHECKED_IN
-    timestamp: 1970-01-01T00:00:00.000+0000
+    timestamp: 1970-01-01T01:00:00.000+0000
+  ```
+
+#### Moderator View
+
+From the moderator perspective, the data should reflect an aggregation of all participants. This will help the moderator release further hints,
+communicate where required (implementation in the future) and status of the challenge.
+
+  Example of a moderator view:
+  ```yml
+  challenge-id: CHALLENGE001
+  time:
+    planned-start-time: 1970-01-01T00:00:00.000+0000
+    actual-start-time: 1970-01-01T00:15:00.000+0000
+    duration: 120
+  participants:
+    - participant-id: PARTICIPANT-A
+      waypoint-id: 2
+      since: 1970-01-01T00:00:00.000+0000
+    - participant-id: PARTICIPANT-B
+      waypoint-id: 4
+      since: 1970-01-01T00:00:00.000+0000
+      ...
   ```
 
 #### Waypoint states
 
 **state** will support one of the waypoints phase:
 - PRESENTED: The participant got the clue to the next
-- CHACKED_IN: Participant signaled arrival to waypoint
-- PROOF_REQUEST: Participant received instruction for proof of location
-- PROCESS_PROOF: Proof of location is being processed by the system
+- CHACKED_IN: Confirmed arrival to the waypoint and waypoint proof presented
 - VERIFIED: Waypoint completed, trigger next waypoint workflow
 
 ### Audit Log
