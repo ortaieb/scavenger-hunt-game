@@ -48,7 +48,7 @@ Use `Validation Gates` as described in the designated agent in the project.
 *** ULTRATHINK ABOUT THE PRP AND PLAN YOUR APPROACH THEN START WRITING THE PRP ***
 
 ## Output
-Save as: `prp/{feature-name}.md`
+Save as: `prp/plans/{feature-name}.md`
 
 ## Quality Checklist
 - [ ] All necessary context included

@@ -3,7 +3,8 @@
 ## 🔄 Project Awareness & Context
 - **Always read `PLANNING.md`** at the start of a new conversation to understand the project's architecture, goals, style, and constraints.
 - **Check `TASKS.md`** before starting a new task. If the task isn’t listed, add it with a brief description and today's date.
-- **Product documents** are stored in directory docs. Make sure you read and apply solutions to align with PRDs. If task contracdicts the product docs, raise it as a risk
+- **Product documents** are stored in directory docs and its subdirectories. Make sure you read and apply solutions to align with PRDs.
+  If task contracdicts the product docs, raise it as a risk
 - **Use consistent naming conventions, file structure, and architecture patterns** as described in `PLANNING.md`.
 
 ## 🧱 Code Structure & Modularity
