@@ -1,21 +1,35 @@
--- Create enum types
-CREATE TYPE challenge_type AS ENUM ('REC', 'COM', 'RES');
-CREATE TYPE waypoint_state AS ENUM ('PRESENTED', 'CHECKED_IN', 'VERIFIED');
-CREATE TYPE audit_event_type AS ENUM (
-    'USER_REGISTERED',
-    'USER_LOGIN',
-    'CHALLENGE_CREATED',
-    'CHALLENGE_STARTED',
-    'CHALLENGE_ENDED',
-    'PARTICIPANT_INVITED',
-    'WAYPOINT_CHECKED_IN',
-    'WAYPOINT_PROOF_SUBMITTED',
-    'WAYPOINT_VERIFIED',
-    'LOCATION_UPDATED'
-);
+-- Create enum types (only if they don't already exist)
+DO $$ BEGIN
+    CREATE TYPE challenge_type AS ENUM ('REC', 'COM', 'RES');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE waypoint_state AS ENUM ('PRESENTED', 'CHECKED_IN', 'VERIFIED');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE audit_event_type AS ENUM (
+        'USER_REGISTERED',
+        'USER_LOGIN',
+        'CHALLENGE_CREATED',
+        'CHALLENGE_STARTED',
+        'CHALLENGE_ENDED',
+        'PARTICIPANT_INVITED',
+        'WAYPOINT_CHECKED_IN',
+        'WAYPOINT_PROOF_SUBMITTED',
+        'WAYPOINT_VERIFIED',
+        'LOCATION_UPDATED'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- Users table
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     user_id SERIAL PRIMARY KEY,
     username VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
@@ -25,7 +39,7 @@ CREATE TABLE users (
 );
 
 -- User roles table
-CREATE TABLE user_roles (
+CREATE TABLE IF NOT EXISTS user_roles (
     user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
     role_name VARCHAR(50) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -33,7 +47,7 @@ CREATE TABLE user_roles (
 );
 
 -- Challenges table
-CREATE TABLE challenges (
+CREATE TABLE IF NOT EXISTS challenges (
     challenge_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     challenge_name VARCHAR(255) NOT NULL,
     challenge_description TEXT,
@@ -48,7 +62,7 @@ CREATE TABLE challenges (
 );
 
 -- Waypoints table
-CREATE TABLE waypoints (
+CREATE TABLE IF NOT EXISTS waypoints (
     waypoint_id SERIAL PRIMARY KEY,
     challenge_id UUID REFERENCES challenges(challenge_id) ON DELETE CASCADE,
     waypoint_sequence INTEGER NOT NULL,
@@ -64,7 +78,7 @@ CREATE TABLE waypoints (
 );
 
 -- Challenge participants table
-CREATE TABLE challenge_participants (
+CREATE TABLE IF NOT EXISTS challenge_participants (
     participant_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     challenge_id UUID REFERENCES challenges(challenge_id) ON DELETE CASCADE,
     user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
@@ -77,7 +91,7 @@ CREATE TABLE challenge_participants (
 );
 
 -- Audit log table
-CREATE TABLE audit_log (
+CREATE TABLE IF NOT EXISTS audit_log (
     log_id SERIAL PRIMARY KEY,
     event_time TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     event_type audit_event_type NOT NULL,
@@ -92,7 +106,7 @@ CREATE TABLE audit_log (
 );
 
 -- Geolocation log table for participant tracking
-CREATE TABLE geolocation_log (
+CREATE TABLE IF NOT EXISTS geolocation_log (
     log_id SERIAL PRIMARY KEY,
     participant_id UUID REFERENCES challenge_participants(participant_id) ON DELETE CASCADE,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -102,27 +116,21 @@ CREATE TABLE geolocation_log (
 );
 
 -- Create indexes for performance optimization
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
-CREATE INDEX idx_challenges_moderator ON challenges(challenge_moderator);
-CREATE INDEX idx_challenges_start_time ON challenges(planned_start_time);
-CREATE INDEX idx_waypoints_challenge_id ON waypoints(challenge_id);
-CREATE INDEX idx_waypoints_sequence ON waypoints(challenge_id, waypoint_sequence);
-CREATE INDEX idx_challenge_participants_challenge_id ON challenge_participants(challenge_id);
-CREATE INDEX idx_challenge_participants_user_id ON challenge_participants(user_id);
-CREATE INDEX idx_challenge_participants_challenge_user ON challenge_participants(challenge_id, user_id);
-CREATE INDEX idx_audit_log_user_id ON audit_log(user_id);
-CREATE INDEX idx_audit_log_challenge_id ON audit_log(challenge_id);
-CREATE INDEX idx_audit_log_event_time ON audit_log(event_time);
-CREATE INDEX idx_audit_log_event_type ON audit_log(event_type);
-CREATE INDEX idx_geolocation_log_participant ON geolocation_log(participant_id);
-CREATE INDEX idx_geolocation_log_timestamp ON geolocation_log(timestamp);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON user_roles(user_id);
+CREATE INDEX IF NOT EXISTS idx_challenges_moderator ON challenges(challenge_moderator);
+CREATE INDEX IF NOT EXISTS idx_challenges_start_time ON challenges(planned_start_time);
+CREATE INDEX IF NOT EXISTS idx_waypoints_challenge_id ON waypoints(challenge_id);
+CREATE INDEX IF NOT EXISTS idx_waypoints_sequence ON waypoints(challenge_id, waypoint_sequence);
+CREATE INDEX IF NOT EXISTS idx_challenge_participants_challenge_id ON challenge_participants(challenge_id);
+CREATE INDEX IF NOT EXISTS idx_challenge_participants_user_id ON challenge_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_challenge_participants_challenge_user ON challenge_participants(challenge_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_challenge_id ON audit_log(challenge_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_event_time ON audit_log(event_time);
+CREATE INDEX IF NOT EXISTS idx_audit_log_event_type ON audit_log(event_type);
+CREATE INDEX IF NOT EXISTS idx_geolocation_log_participant ON geolocation_log(participant_id);
+CREATE INDEX IF NOT EXISTS idx_geolocation_log_timestamp ON geolocation_log(timestamp);
 
--- Insert default roles
-INSERT INTO user_roles (user_id, role_name) VALUES 
-    (1, 'game.admin'),
-    (1, 'challenge.manager'),
-    (1, 'challenge.moderator'),
-    (1, 'challenge.participant'),
-    (1, 'user.verified')
-ON CONFLICT (user_id, role_name) DO NOTHING;
+-- Default roles will be assigned when users are created
+-- No default user roles inserted here to avoid foreign key constraint violations
