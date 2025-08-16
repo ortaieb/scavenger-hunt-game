@@ -31,10 +31,6 @@ pub enum AuthError {
     TokenValidationFailed(String),
     #[error("Token expired")]
     TokenExpired,
-    #[error("Invalid token format")]
-    InvalidTokenFormat,
-    #[error("Missing authorization header")]
-    MissingAuthHeader,
     #[error("Invalid authorization header format")]
     InvalidAuthHeaderFormat,
 }

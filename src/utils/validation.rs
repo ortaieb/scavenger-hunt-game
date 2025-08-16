@@ -28,6 +28,7 @@ impl ValidationErrors {
         !self.errors.is_empty()
     }
 
+    #[allow(dead_code)]
     pub fn into_field_errors(self) -> HashMap<String, Vec<String>> {
         self.errors
     }
@@ -41,6 +42,7 @@ impl Default for ValidationErrors {
 
 /// Validator trait for implementing custom validation logic
 pub trait Validator<T> {
+    #[allow(dead_code)]
     fn validate(&self, value: &T) -> ValidationResult<()>;
 }
 
@@ -116,26 +118,31 @@ impl PasswordValidator {
         }
     }
 
+    #[allow(dead_code)]
     pub fn min_length(mut self, length: usize) -> Self {
         self.min_length = length;
         self
     }
 
+    #[allow(dead_code)]
     pub fn require_uppercase(mut self) -> Self {
         self.require_uppercase = true;
         self
     }
 
+    #[allow(dead_code)]
     pub fn require_lowercase(mut self) -> Self {
         self.require_lowercase = true;
         self
     }
 
+    #[allow(dead_code)]
     pub fn require_digit(mut self) -> Self {
         self.require_digit = true;
         self
     }
 
+    #[allow(dead_code)]
     pub fn require_special_character(mut self) -> Self {
         self.require_special = true;
         self
@@ -214,14 +221,17 @@ impl GpsCoordinateValidator {
         Self
     }
 
+    #[allow(dead_code)]
     pub fn is_valid_latitude(lat: f64) -> bool {
         (-90.0..=90.0).contains(&lat)
     }
 
+    #[allow(dead_code)]
     pub fn is_valid_longitude(lon: f64) -> bool {
         (-180.0..=180.0).contains(&lon)
     }
 
+    #[allow(dead_code)]
     pub fn validate_coordinates(lat: f64, lon: f64) -> ValidationResult<()> {
         let mut errors = ValidationErrors::new();
 
@@ -267,11 +277,13 @@ impl StringLengthValidator {
         }
     }
 
+    #[allow(dead_code)]
     pub fn min_length(mut self, length: usize) -> Self {
         self.min_length = Some(length);
         self
     }
 
+    #[allow(dead_code)]
     pub fn max_length(mut self, length: usize) -> Self {
         self.max_length = Some(length);
         self
@@ -374,11 +386,13 @@ where
         }
     }
 
+    #[allow(dead_code)]
     pub fn min(mut self, min_val: T) -> Self {
         self.min = Some(min_val);
         self
     }
 
+    #[allow(dead_code)]
     pub fn max(mut self, max_val: T) -> Self {
         self.max = Some(max_val);
         self
@@ -417,6 +431,7 @@ pub mod validators {
     use super::*;
 
     /// Validate user registration data
+    #[allow(dead_code)]
     pub fn validate_user_registration(
         email: &str,
         password: &str,
@@ -468,6 +483,7 @@ pub mod validators {
     }
 
     /// Validate challenge data
+    #[allow(dead_code)]
     pub fn validate_challenge_data(
         name: &str,
         description: Option<&str>,

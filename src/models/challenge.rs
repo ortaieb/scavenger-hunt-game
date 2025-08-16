@@ -453,6 +453,7 @@ impl Challenge {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn is_ended(&self) -> bool {
         if let Some(start_time) = self.actual_start_time {
             let end_time = start_time + chrono::Duration::minutes(self.duration_minutes as i64);
@@ -462,6 +463,7 @@ impl Challenge {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_end_time(&self) -> Option<DateTime<Utc>> {
         self.actual_start_time
             .map(|start| start + chrono::Duration::minutes(self.duration_minutes as i64))

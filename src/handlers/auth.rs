@@ -186,7 +186,7 @@ pub async fn create_participant_token(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::UserRole;
+    use crate::models::user::UserRole;
 
     #[tokio::test]
     async fn test_register_user_request_deserialization() {
@@ -194,7 +194,7 @@ mod tests {
             "username": "test@example.com",
             "password": "Password123",
             "nickname": "TestUser",
-            "roles": ["user.verified", "challenge.participant"]
+            "roles": ["UserVerified", "ChallengeParticipant"]
         }"#;
 
         let request: CreateUserRequest = serde_json::from_str(json).unwrap();

@@ -42,6 +42,7 @@ pub enum AuthServiceError {
     #[error("Challenge not active")]
     ChallengeNotActive,
     #[error("Invalid request: {0}")]
+    #[allow(dead_code)]
     InvalidRequest(String),
     #[error("Database error: {0}")]
     DatabaseError(#[from] sqlx::Error),
@@ -203,6 +204,7 @@ impl AuthService {
         Ok(user)
     }
 
+    #[allow(dead_code)]
     pub async fn validate_user_permissions(
         &self,
         user_id: i32,
@@ -225,6 +227,7 @@ mod tests {
     use super::*;
     use crate::auth::JwtService;
 
+    #[allow(dead_code)]
     async fn create_test_auth_service() -> AuthService {
         // Note: This would need a test database setup in real tests
         // For now, we'll focus on the structure

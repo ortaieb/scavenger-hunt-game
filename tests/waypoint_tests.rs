@@ -1,5 +1,5 @@
 use axum::{
-    body::Body,
+    body::{Body, to_bytes},
     http::{self, Request, StatusCode},
 };
 use serde_json::{json, Value};
@@ -12,6 +12,8 @@ use scavenger_hunt_game_server::{
     auth::{AuthState, JwtService},
     config::Config,
     create_api_router, create_connection_pool, run_migrations,
+    models::challenge::{ChallengeType, WaypointState},
+    routes::AppState,
     services::{AuthService, ImageService, LocationService},
 };
 
@@ -54,13 +56,14 @@ async fn setup_test_environment() -> (axum::Router, PgPool) {
     let auth_state = AuthState { jwt_service };
 
     // Create router
-    let app = create_api_router(
-        pool.clone(),
+    let app_state = AppState {
+        pool: pool.clone(),
         auth_service,
         location_service,
         image_service,
         auth_state,
-    );
+    };
+    let app = create_api_router(app_state);
 
     (app, pool)
 }
@@ -91,7 +94,7 @@ async fn setup_challenge_scenario(app: &axum::Router, pool: &PgPool) -> TestSetu
         .unwrap();
 
     let register_response = app.clone().oneshot(register_request).await.unwrap();
-    let register_body = hyper::body::to_bytes(register_response.into_body())
+    let register_body = to_bytes(register_response.into_body(), 1024 * 1024)
         .await
         .unwrap();
     let register_json: Value = serde_json::from_slice(&register_body).unwrap();
@@ -123,7 +126,7 @@ async fn setup_challenge_scenario(app: &axum::Router, pool: &PgPool) -> TestSetu
         chrono::Utc::now() - chrono::Duration::hours(1),
         chrono::Utc::now() - chrono::Duration::minutes(30), // Started 30 mins ago
         120,
-        "COM"
+        ChallengeType::Com as ChallengeType
     )
     .execute(pool)
     .await
@@ -143,7 +146,7 @@ async fn setup_challenge_scenario(app: &axum::Router, pool: &PgPool) -> TestSetu
         -0.1278,
         50.0, // 50 meter radius
         "Find the red post box",
-        &vec!["Look for something red", "Used for posting letters"],
+        &vec!["Look for something red".to_string(), "Used for posting letters".to_string()],
         15,
         "Red post box"
     )
@@ -164,7 +167,7 @@ async fn setup_challenge_scenario(app: &axum::Router, pool: &PgPool) -> TestSetu
         user_id,
         "TestParticipant",
         waypoint_id,
-        "PRESENTED"
+        WaypointState::Presented as WaypointState
     )
     .fetch_one(pool)
     .await
@@ -188,7 +191,7 @@ async fn setup_challenge_scenario(app: &axum::Router, pool: &PgPool) -> TestSetu
         .unwrap();
 
     let token_response = app.clone().oneshot(token_request).await.unwrap();
-    let token_body = hyper::body::to_bytes(token_response.into_body())
+    let token_body = to_bytes(token_response.into_body(), 1024 * 1024)
         .await
         .unwrap();
     let token_json: Value = serde_json::from_slice(&token_body).unwrap();
@@ -235,7 +238,7 @@ async fn test_waypoint_checkin_success() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -284,7 +287,7 @@ async fn test_waypoint_checkin_too_far() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -324,7 +327,7 @@ async fn test_waypoint_checkin_wrong_waypoint() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -352,7 +355,7 @@ async fn test_waypoint_checkin_not_current_waypoint() {
         -0.1290,
         30.0,
         "Find the clock tower",
-        &vec!["Look up high"],
+        &vec!["Look up high".to_string()],
         20,
         "Clock tower"
     )
@@ -386,7 +389,7 @@ async fn test_waypoint_checkin_not_current_waypoint() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -429,7 +432,7 @@ async fn test_waypoint_proof_submission_not_checked_in() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -468,7 +471,7 @@ async fn test_waypoint_checkin_invalid_coordinates() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -497,7 +500,7 @@ async fn test_waypoint_checkin_without_participant_token() {
         .unwrap();
 
     let register_response = app.clone().oneshot(register_request).await.unwrap();
-    let register_body = hyper::body::to_bytes(register_response.into_body())
+    let register_body = to_bytes(register_response.into_body(), 1024 * 1024)
         .await
         .unwrap();
     let register_json: Value = serde_json::from_slice(&register_body).unwrap();
@@ -527,7 +530,7 @@ async fn test_waypoint_checkin_without_participant_token() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert!(response_json["message"]
@@ -572,7 +575,7 @@ async fn test_location_validation_boundary_cases() {
     assert!(response.status() == StatusCode::OK || response.status() == StatusCode::BAD_REQUEST);
 
     if response.status() == StatusCode::OK {
-        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
         let response_json: Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(response_json["state"].as_str().unwrap(), "CHECKED_IN");
     }

@@ -1,5 +1,5 @@
 use axum::{
-    body::Body,
+    body::{Body, to_bytes},
     http::{self, Request, StatusCode},
 };
 use serde_json::{json, Value};
@@ -12,6 +12,8 @@ use scavenger_hunt_game_server::{
     auth::{AuthState, JwtService},
     config::Config,
     create_api_router, create_connection_pool, run_migrations,
+    models::challenge::ChallengeType,
+    routes::AppState,
     services::{AuthService, ImageService, LocationService},
 };
 
@@ -54,13 +56,14 @@ async fn setup_test_environment() -> (axum::Router, PgPool) {
     let auth_state = AuthState { jwt_service };
 
     // Create router
-    let app = create_api_router(
-        pool.clone(),
+    let app_state = AppState {
+        pool: pool.clone(),
         auth_service,
         location_service,
         image_service,
         auth_state,
-    );
+    };
+    let app = create_api_router(app_state);
 
     (app, pool)
 }
@@ -98,7 +101,7 @@ async fn create_test_challenge(pool: &PgPool, moderator_id: i32) -> Uuid {
         moderator_id,
         chrono::Utc::now() + chrono::Duration::hours(1),
         120,
-        "COM"
+        ChallengeType::Com as ChallengeType
     )
     .execute(pool)
     .await
@@ -144,7 +147,7 @@ async fn test_user_registration_success() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert!(response_json["user-auth-token"].is_string());
@@ -175,7 +178,7 @@ async fn test_user_registration_duplicate_email() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CONFLICT);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -204,7 +207,7 @@ async fn test_user_registration_invalid_email() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -233,7 +236,7 @@ async fn test_user_registration_weak_password() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert!(response_json["message"]
@@ -278,7 +281,7 @@ async fn test_user_login_success() {
     let response = app.oneshot(login_request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert!(response_json["user-auth-token"].is_string());
@@ -305,7 +308,7 @@ async fn test_user_login_invalid_credentials() {
     let response = app.oneshot(login_request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -333,7 +336,7 @@ async fn test_participant_token_creation_success() {
         .unwrap();
 
     let register_response = app.clone().oneshot(register_request).await.unwrap();
-    let register_body = hyper::body::to_bytes(register_response.into_body())
+    let register_body = to_bytes(register_response.into_body(), 1024 * 1024)
         .await
         .unwrap();
     let register_json: Value = serde_json::from_slice(&register_body).unwrap();
@@ -371,7 +374,7 @@ async fn test_participant_token_creation_success() {
     let response = app.oneshot(token_request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert!(response_json["participant-auth-token"].is_string());
@@ -398,7 +401,7 @@ async fn test_participant_token_user_not_invited() {
         .unwrap();
 
     let register_response = app.clone().oneshot(register_request).await.unwrap();
-    let register_body = hyper::body::to_bytes(register_response.into_body())
+    let register_body = to_bytes(register_response.into_body(), 1024 * 1024)
         .await
         .unwrap();
     let register_json: Value = serde_json::from_slice(&register_body).unwrap();
@@ -436,7 +439,7 @@ async fn test_participant_token_user_not_invited() {
     let response = app.oneshot(token_request).await.unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -465,7 +468,7 @@ async fn test_protected_endpoint_without_token() {
     let response = app.oneshot(token_request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -494,7 +497,7 @@ async fn test_protected_endpoint_with_invalid_token() {
     let response = app.oneshot(token_request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert!(response_json["message"]

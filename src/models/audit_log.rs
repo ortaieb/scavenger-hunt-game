@@ -110,6 +110,7 @@ pub enum AuditError {
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
     #[error("Invalid event data")]
+    #[allow(dead_code)]
     InvalidEventData,
 }
 
@@ -233,6 +234,7 @@ impl AuditLog {
     }
 
     /// Log user registration event
+    #[allow(dead_code)]
     pub async fn log_user_registered(
         pool: &PgPool,
         user_id: i32,
@@ -255,6 +257,7 @@ impl AuditLog {
     }
 
     /// Log user login event
+    #[allow(dead_code)]
     pub async fn log_user_login(
         pool: &PgPool,
         user_id: Option<i32>,
@@ -450,6 +453,7 @@ impl AuditLog {
     }
 
     /// Log location update event
+    #[allow(dead_code)]
     pub async fn log_location_updated(
         pool: &PgPool,
         participant_id: Uuid,
@@ -478,6 +482,7 @@ impl AuditLog {
     }
 
     /// Get audit logs for a challenge
+    #[allow(dead_code)]
     pub async fn get_challenge_logs(
         pool: &PgPool,
         challenge_id: Uuid,
@@ -509,6 +514,7 @@ impl AuditLog {
     }
 
     /// Get audit logs for a participant
+    #[allow(dead_code)]
     pub async fn get_participant_logs(
         pool: &PgPool,
         participant_id: Uuid,
@@ -540,6 +546,7 @@ impl AuditLog {
     }
 
     /// Get audit logs for a user
+    #[allow(dead_code)]
     pub async fn get_user_logs(
         pool: &PgPool,
         user_id: i32,
@@ -571,6 +578,7 @@ impl AuditLog {
     }
 
     /// Get audit logs by event type
+    #[allow(dead_code)]
     pub async fn get_logs_by_type(
         pool: &PgPool,
         event_type: AuditEventType,

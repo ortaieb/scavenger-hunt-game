@@ -28,8 +28,11 @@ pub struct AuthenticatedUser {
 #[derive(Debug, Clone)]
 pub struct AuthenticatedParticipant {
     pub participant_id: String,
+    #[allow(dead_code)]
     pub user_id: i32,
+    #[allow(dead_code)]
     pub challenge_id: String,
+    #[allow(dead_code)]
     pub roles: Vec<String>,
 }
 
@@ -192,14 +195,17 @@ pub async fn jwt_middleware(
 
 // Role validation helper functions
 impl AuthenticatedUser {
+    #[allow(dead_code)]
     pub fn has_role(&self, role: &str) -> bool {
         self.roles.contains(&role.to_string())
     }
 
+    #[allow(dead_code)]
     pub fn has_any_role(&self, roles: &[&str]) -> bool {
         roles.iter().any(|role| self.has_role(role))
     }
 
+    #[allow(dead_code)]
     pub fn require_role(&self, role: &str) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
         if self.has_role(role) {
             Ok(())
@@ -215,14 +221,17 @@ impl AuthenticatedUser {
 }
 
 impl AuthenticatedParticipant {
+    #[allow(dead_code)]
     pub fn has_role(&self, role: &str) -> bool {
         self.roles.contains(&role.to_string())
     }
 
+    #[allow(dead_code)]
     pub fn has_any_role(&self, roles: &[&str]) -> bool {
         roles.iter().any(|role| self.has_role(role))
     }
 
+    #[allow(dead_code)]
     pub fn require_role(&self, role: &str) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
         if self.has_role(role) {
             Ok(())

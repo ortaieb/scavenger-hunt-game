@@ -440,7 +440,7 @@ pub async fn invite_participant(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::ChallengeType;
+    use crate::models::challenge::ChallengeType;
 
     #[test]
     fn test_create_challenge_request_deserialization() {

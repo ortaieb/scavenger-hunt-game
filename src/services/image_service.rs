@@ -247,6 +247,7 @@ impl ImageService {
     }
 
     /// Create datetime constraint for current time window
+    #[allow(dead_code)]
     pub fn create_current_time_constraint(duration_minutes: i64) -> DateTimeConstraint {
         let now = Utc::now();
         DateTimeConstraint {

@@ -1,5 +1,5 @@
 use axum::{
-    body::Body,
+    body::{Body, to_bytes},
     http::{self, Request, StatusCode},
 };
 use serde_json::{json, Value};
@@ -12,6 +12,8 @@ use scavenger_hunt_game_server::{
     auth::{AuthState, JwtService},
     config::Config,
     create_api_router, create_connection_pool, run_migrations,
+    models::challenge::ChallengeType,
+    routes::AppState,
     services::{AuthService, ImageService, LocationService},
 };
 
@@ -54,13 +56,14 @@ async fn setup_test_environment() -> (axum::Router, PgPool) {
     let auth_state = AuthState { jwt_service };
 
     // Create router
-    let app = create_api_router(
-        pool.clone(),
+    let app_state = AppState {
+        pool: pool.clone(),
         auth_service,
         location_service,
         image_service,
         auth_state,
-    );
+    };
+    let app = create_api_router(app_state);
 
     (app, pool)
 }
@@ -86,7 +89,7 @@ async fn register_user_and_get_token(
         .unwrap();
 
     let register_response = app.clone().oneshot(register_request).await.unwrap();
-    let register_body = hyper::body::to_bytes(register_response.into_body())
+    let register_body = to_bytes(register_response.into_body(), 1024 * 1024)
         .await
         .unwrap();
     let register_json: Value = serde_json::from_slice(&register_body).unwrap();
@@ -148,7 +151,7 @@ async fn test_create_challenge_success() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     // Verify challenge details
@@ -222,7 +225,7 @@ async fn test_create_challenge_insufficient_permissions() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -279,7 +282,7 @@ async fn test_create_challenge_invalid_waypoint_sequence() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert!(response_json["message"]
@@ -306,7 +309,7 @@ async fn test_get_challenge_success() {
         1, // Assume user ID 1 exists
         chrono::Utc::now() + chrono::Duration::hours(1),
         90,
-        "REC"
+        ChallengeType::Rec as ChallengeType
     )
     .execute(&pool)
     .await
@@ -326,7 +329,7 @@ async fn test_get_challenge_success() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -362,7 +365,7 @@ async fn test_get_challenge_not_found() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -407,7 +410,7 @@ async fn test_start_challenge_success() {
         user_id,
         chrono::Utc::now() + chrono::Duration::hours(1),
         120,
-        "COM"
+        ChallengeType::Com as ChallengeType
     )
     .execute(&pool)
     .await
@@ -426,7 +429,7 @@ async fn test_start_challenge_success() {
         -0.1278,
         50.0,
         "First waypoint",
-        &vec!["Hint 1"],
+        &vec!["Hint 1".to_string()],
         15,
         "Test subject"
     )
@@ -464,7 +467,7 @@ async fn test_start_challenge_success() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -502,7 +505,7 @@ async fn test_start_challenge_not_moderator() {
         999, // Different moderator
         chrono::Utc::now() + chrono::Duration::hours(1),
         120,
-        "COM"
+        ChallengeType::Com as ChallengeType
     )
     .execute(&pool)
     .await
@@ -524,7 +527,7 @@ async fn test_start_challenge_not_moderator() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
@@ -571,7 +574,7 @@ async fn test_start_challenge_already_started() {
         chrono::Utc::now() - chrono::Duration::hours(1),
         chrono::Utc::now() - chrono::Duration::minutes(30), // Already started
         120,
-        "COM"
+        ChallengeType::Com as ChallengeType
     )
     .execute(&pool)
     .await
@@ -593,7 +596,7 @@ async fn test_start_challenge_already_started() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CONFLICT);
 
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
     let response_json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(

@@ -46,6 +46,7 @@ pub struct ResponseBuilder;
 
 impl ResponseBuilder {
     /// Create a successful response
+    #[allow(dead_code)]
     pub fn success<T: Serialize>(data: T) -> (StatusCode, Json<ApiResponse<T>>) {
         (
             StatusCode::OK,
@@ -91,6 +92,7 @@ impl ResponseBuilder {
     }
 
     /// Create an error response
+    #[allow(dead_code)]
     pub fn error(
         status: StatusCode,
         code: String,
@@ -111,6 +113,7 @@ impl ResponseBuilder {
     }
 
     /// Create an error response with details
+    #[allow(dead_code)]
     pub fn error_with_details(
         status: StatusCode,
         code: String,
@@ -132,6 +135,7 @@ impl ResponseBuilder {
     }
 
     /// Create a validation error response
+    #[allow(dead_code)]
     pub fn validation_error(
         field_errors: HashMap<String, Vec<String>>,
     ) -> (StatusCode, Json<ValidationErrorResponse>) {
@@ -150,6 +154,7 @@ impl ResponseBuilder {
     }
 
     /// Create a not found error response
+    #[allow(dead_code)]
     pub fn not_found(resource: &str) -> (StatusCode, Json<ApiErrorResponse>) {
         Self::error(
             StatusCode::NOT_FOUND,
@@ -159,6 +164,7 @@ impl ResponseBuilder {
     }
 
     /// Create an unauthorized error response
+    #[allow(dead_code)]
     pub fn unauthorized(message: Option<String>) -> (StatusCode, Json<ApiErrorResponse>) {
         Self::error(
             StatusCode::UNAUTHORIZED,
@@ -168,6 +174,7 @@ impl ResponseBuilder {
     }
 
     /// Create a forbidden error response
+    #[allow(dead_code)]
     pub fn forbidden(message: Option<String>) -> (StatusCode, Json<ApiErrorResponse>) {
         Self::error(
             StatusCode::FORBIDDEN,
@@ -177,11 +184,13 @@ impl ResponseBuilder {
     }
 
     /// Create a conflict error response
+    #[allow(dead_code)]
     pub fn conflict(message: String) -> (StatusCode, Json<ApiErrorResponse>) {
         Self::error(StatusCode::CONFLICT, "CONFLICT".to_string(), message)
     }
 
     /// Create an internal server error response
+    #[allow(dead_code)]
     pub fn internal_server_error(message: Option<String>) -> (StatusCode, Json<ApiErrorResponse>) {
         Self::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -191,6 +200,7 @@ impl ResponseBuilder {
     }
 
     /// Create a bad request error response
+    #[allow(dead_code)]
     pub fn bad_request(message: String) -> (StatusCode, Json<ApiErrorResponse>) {
         Self::error(StatusCode::BAD_REQUEST, "BAD_REQUEST".to_string(), message)
     }
@@ -200,14 +210,23 @@ impl ResponseBuilder {
 pub struct ErrorCodes;
 
 impl ErrorCodes {
+    #[allow(dead_code)]
     pub const VALIDATION_ERROR: &'static str = "VALIDATION_ERROR";
+    #[allow(dead_code)]
     pub const AUTHENTICATION_FAILED: &'static str = "AUTHENTICATION_FAILED";
+    #[allow(dead_code)]
     pub const AUTHORIZATION_FAILED: &'static str = "AUTHORIZATION_FAILED";
+    #[allow(dead_code)]
     pub const RESOURCE_NOT_FOUND: &'static str = "RESOURCE_NOT_FOUND";
+    #[allow(dead_code)]
     pub const RESOURCE_CONFLICT: &'static str = "RESOURCE_CONFLICT";
+    #[allow(dead_code)]
     pub const INVALID_REQUEST: &'static str = "INVALID_REQUEST";
+    #[allow(dead_code)]
     pub const EXTERNAL_SERVICE_ERROR: &'static str = "EXTERNAL_SERVICE_ERROR";
+    #[allow(dead_code)]
     pub const DATABASE_ERROR: &'static str = "DATABASE_ERROR";
+    #[allow(dead_code)]
     pub const RATE_LIMIT_EXCEEDED: &'static str = "RATE_LIMIT_EXCEEDED";
 }
 
@@ -216,6 +235,7 @@ pub mod helpers {
     use super::*;
 
     /// Convert validation errors to field error map
+    #[allow(dead_code)]
     pub fn validation_errors_to_field_map(
         errors: Vec<(String, String)>,
     ) -> HashMap<String, Vec<String>> {
@@ -239,6 +259,7 @@ pub mod helpers {
     }
 
     impl<T> PaginatedResponse<T> {
+        #[allow(dead_code)]
         pub fn new(items: Vec<T>, total_count: i64, page: i32, page_size: i32) -> Self {
             let total_pages = ((total_count as f64) / (page_size as f64)).ceil() as i32;
 
@@ -253,21 +274,25 @@ pub mod helpers {
     }
 
     /// Create success response for created resources
+    #[allow(dead_code)]
     pub fn created<T: Serialize>(data: T) -> (StatusCode, Json<ApiResponse<T>>) {
         ResponseBuilder::success_with_status(StatusCode::CREATED, data)
     }
 
     /// Create success response for updated resources
+    #[allow(dead_code)]
     pub fn updated<T: Serialize>(data: T) -> (StatusCode, Json<ApiResponse<T>>) {
         ResponseBuilder::success_with_message(data, "Resource updated successfully".to_string())
     }
 
     /// Create success response for deleted resources
+    #[allow(dead_code)]
     pub fn deleted() -> (StatusCode, Json<ApiResponse<()>>) {
         ResponseBuilder::success_with_message((), "Resource deleted successfully".to_string())
     }
 
     /// Create response for no content
+    #[allow(dead_code)]
     pub fn no_content() -> StatusCode {
         StatusCode::NO_CONTENT
     }
