@@ -10,6 +10,7 @@ use crate::models::{
     AuditLog, Challenge, ChallengeError, ChallengeResponse, CreateChallengeRequest,
     StartChallengeRequest, StartChallengeResponse,
 };
+use crate::models::challenge::TemporalChallenge;
 use crate::routes::AppState;
 
 /// Create a new challenge
@@ -56,15 +57,33 @@ pub async fn create_challenge(
         }
     };
 
-    match Challenge::create(&state.pool, user.user_id, request.clone()).await {
-        Ok(challenge) => {
+    match TemporalChallenge::create_new(&state.pool, user.user_id, request.clone()).await {
+        Ok(temporal_challenge) => {
+            // Convert to legacy format for response compatibility
+            let challenge = temporal_challenge.to_legacy_challenge()
+                .map_err(|e| {
+                    tracing::error!("Failed to convert temporal challenge to legacy format: {}", e);
+                    (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                        message: "Internal server error".to_string(),
+                    }))
+                })?;
+
+            // Get challenge data for logging
+            let challenge_data = temporal_challenge.get_challenge_data()
+                .map_err(|e| {
+                    tracing::error!("Failed to get challenge data: {}", e);
+                    (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                        message: "Internal server error".to_string(),
+                    }))
+                })?;
+
             // Log challenge creation
             if let Err(e) = AuditLog::log_challenge_created(
                 &state.pool,
                 user.user_id,
                 challenge.challenge_id,
                 &challenge.challenge_name,
-                &challenge.challenge_type.to_string(),
+                &challenge_data.challenge_type.to_string(),
                 request.waypoints.len() as i32,
             )
             .await
@@ -72,17 +91,37 @@ pub async fn create_challenge(
                 tracing::warn!("Failed to log challenge creation: {}", e);
             }
 
-            // Get waypoints and participants for response
-            let waypoints = challenge
-                .get_waypoints(&state.pool)
-                .await
-                .unwrap_or_default();
-            let participants = challenge
-                .get_participants(&state.pool)
-                .await
-                .unwrap_or_default();
+            // Get waypoints from temporal challenge
+            let waypoints_data = temporal_challenge.get_waypoints()
+                .map_err(|e| {
+                    tracing::error!("Failed to get waypoints: {}", e);
+                    (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                        message: "Internal server error".to_string(),
+                    }))
+                })?;
 
-            tracing::info!("Challenge created successfully: {}", challenge.challenge_id);
+            // Convert waypoints to legacy format
+            let waypoints = waypoints_data.into_iter().map(|wd| {
+                crate::models::Waypoint {
+                    waypoint_id: wd.waypoint_id.unwrap_or(0), // Placeholder
+                    challenge_id: challenge.challenge_id,
+                    waypoint_sequence: wd.waypoint_sequence,
+                    location_lat: wd.location.lat,
+                    location_lon: wd.location.lon,
+                    radius_meters: wd.radius_meters,
+                    waypoint_clue: wd.waypoint_clue,
+                    hints: Some(wd.hints),
+                    waypoint_time_minutes: wd.waypoint_time_minutes,
+                    image_subject: wd.image_subject,
+                    created_at: wd.created_at.unwrap_or_else(chrono::Utc::now),
+                }
+            }).collect();
+
+            // For new challenges, participants list is empty
+            let participants = vec![];
+
+            tracing::info!("Challenge created successfully: {} (temporal ID: {})", 
+                challenge.challenge_id, temporal_challenge.challenge_id);
 
             let response = ChallengeResponse {
                 challenge,

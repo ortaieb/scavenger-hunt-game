@@ -103,6 +103,6 @@ mod tests {
         // );
 
         // For now, just test that the function signature is correct
-        assert!(true);
+        // Test passes if the function compilation succeeds
     }
 }

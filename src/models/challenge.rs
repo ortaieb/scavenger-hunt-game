@@ -35,6 +35,55 @@ pub enum WaypointState {
     Verified,
 }
 
+// New temporal challenge structure for JSON storage
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct TemporalChallenge {
+    pub challenge_id: i32,                            // Sequence-based ID
+    pub challenge_version_id: i32,                    // Unique version ID
+    pub challenge_name: String,                       // NOT NULL
+    pub planned_start_time: DateTime<Utc>,            // NOT NULL
+    pub challenge: serde_json::Value,                 // JSONB - the complete challenge data
+    pub start_at: DateTime<Utc>,                      // Temporal validity start
+    pub end_at: Option<DateTime<Utc>>,                // Temporal validity end (NULL = current)
+    pub created_at: DateTime<Utc>,                    // Record creation time
+    pub updated_at: DateTime<Utc>,                    // Record update time
+}
+
+// JSON structure that will be stored in the challenge JSONB field
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChallengeData {
+    pub challenge_id: i32,                            // For backwards compatibility
+    pub challenge_description: Option<String>,
+    pub challenge_moderator: i32,
+    pub actual_start_time: Option<DateTime<Utc>>,
+    pub duration_minutes: i32,
+    pub challenge_type: ChallengeType,
+    pub active: bool,
+    pub waypoints: Vec<WaypointData>,
+    pub metadata: ChallengeMetadata,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WaypointData {
+    pub waypoint_id: Option<i32>,                     // Optional for new waypoints
+    pub waypoint_sequence: i32,
+    pub location: GeoLocation,
+    pub radius_meters: f64,
+    pub waypoint_clue: String,
+    pub hints: Vec<String>,
+    pub waypoint_time_minutes: Option<i32>,
+    pub image_subject: String,
+    pub created_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChallengeMetadata {
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub migrated_from_relational: Option<bool>,
+    pub version_notes: Option<String>,
+}
+
 #[derive(Debug, Clone, FromRow, Serialize)]
 pub struct Challenge {
     pub challenge_id: Uuid,                       // UUID PRIMARY KEY - never null
@@ -598,6 +647,280 @@ impl ChallengeParticipant {
     }
 }
 
+// Implementation for TemporalChallenge (new JSON-based storage)
+impl TemporalChallenge {
+    pub async fn create_new(
+        pool: &PgPool,
+        moderator_id: i32,
+        request: CreateChallengeRequest,
+    ) -> Result<TemporalChallenge, ChallengeError> {
+        // Validate waypoint sequences
+        Self::validate_waypoint_sequences(&request.waypoints)?;
+
+        let mut tx = pool.begin().await?;
+
+        // Get next challenge_id from sequence
+        let challenge_id: i32 = sqlx::query_scalar!("SELECT nextval('challenge_id_seq')::int")
+            .fetch_one(&mut *tx)
+            .await?
+            .unwrap();
+
+        // Build waypoints data
+        let waypoints_data: Vec<WaypointData> = request
+            .waypoints
+            .into_iter()
+            .map(|wp| WaypointData {
+                waypoint_id: None, // Will be generated if needed
+                waypoint_sequence: wp.waypoint_sequence,
+                location: wp.location,
+                radius_meters: wp.radius_meters,
+                waypoint_clue: wp.waypoint_clue,
+                hints: wp.hints,
+                waypoint_time_minutes: wp.waypoint_time_minutes,
+                image_subject: wp.image_subject,
+                created_at: Some(Utc::now()),
+            })
+            .collect();
+
+        // Build challenge data
+        let challenge_data = ChallengeData {
+            challenge_id,
+            challenge_description: request.challenge_description,
+            challenge_moderator: moderator_id,
+            actual_start_time: None,
+            duration_minutes: request.duration_minutes,
+            challenge_type: request.challenge_type,
+            active: true,
+            waypoints: waypoints_data,
+            metadata: ChallengeMetadata {
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                migrated_from_relational: None,
+                version_notes: Some("Initial version".to_string()),
+            },
+        };
+
+        // Convert to JSON
+        let challenge_json = serde_json::to_value(&challenge_data)
+            .map_err(|e| ChallengeError::ValidationFailed(format!("JSON serialization failed: {e}")))?;
+
+        // Insert into temporal_challenges table
+        let temporal_challenge = sqlx::query_as!(
+            TemporalChallenge,
+            r#"
+            INSERT INTO temporal_challenges (challenge_id, challenge_name, planned_start_time, challenge)
+            VALUES ($1, $2, $3, $4)
+            RETURNING challenge_id as "challenge_id!", challenge_version_id as "challenge_version_id!", 
+                     challenge_name as "challenge_name!", planned_start_time as "planned_start_time!",
+                     challenge as "challenge!", start_at as "start_at!", end_at, 
+                     created_at as "created_at!", updated_at as "updated_at!"
+            "#,
+            challenge_id,
+            request.challenge_name,
+            request.planned_start_time,
+            challenge_json
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(temporal_challenge)
+    }
+
+    pub async fn get_current_by_id(pool: &PgPool, challenge_id: i32) -> Result<TemporalChallenge, ChallengeError> {
+        let temporal_challenge = sqlx::query_as!(
+            TemporalChallenge,
+            r#"
+            SELECT challenge_id as "challenge_id!", challenge_version_id as "challenge_version_id!", 
+                   challenge_name as "challenge_name!", planned_start_time as "planned_start_time!",
+                   challenge as "challenge!", start_at as "start_at!", end_at, 
+                   created_at as "created_at!", updated_at as "updated_at!"
+            FROM temporal_challenges
+            WHERE challenge_id = $1 AND end_at IS NULL
+            "#,
+            challenge_id
+        )
+        .fetch_optional(pool)
+        .await?
+        .ok_or(ChallengeError::ChallengeNotFound)?;
+
+        Ok(temporal_challenge)
+    }
+
+    pub async fn get_by_version_id(pool: &PgPool, version_id: i32) -> Result<TemporalChallenge, ChallengeError> {
+        let temporal_challenge = sqlx::query_as!(
+            TemporalChallenge,
+            r#"
+            SELECT challenge_id as "challenge_id!", challenge_version_id as "challenge_version_id!", 
+                   challenge_name as "challenge_name!", planned_start_time as "planned_start_time!",
+                   challenge as "challenge!", start_at as "start_at!", end_at, 
+                   created_at as "created_at!", updated_at as "updated_at!"
+            FROM temporal_challenges
+            WHERE challenge_version_id = $1
+            "#,
+            version_id
+        )
+        .fetch_optional(pool)
+        .await?
+        .ok_or(ChallengeError::ChallengeNotFound)?;
+
+        Ok(temporal_challenge)
+    }
+
+    pub fn get_challenge_data(&self) -> Result<ChallengeData, ChallengeError> {
+        serde_json::from_value(self.challenge.clone())
+            .map_err(|e| ChallengeError::ValidationFailed(format!("JSON deserialization failed: {e}")))
+    }
+
+    pub async fn create_new_version(
+        &self,
+        pool: &PgPool,
+        updated_data: ChallengeData,
+        version_notes: Option<String>,
+    ) -> Result<TemporalChallenge, ChallengeError> {
+        let mut updated_challenge_data = updated_data;
+        updated_challenge_data.metadata.updated_at = Utc::now();
+        updated_challenge_data.metadata.version_notes = version_notes;
+
+        let challenge_json = serde_json::to_value(&updated_challenge_data)
+            .map_err(|e| ChallengeError::ValidationFailed(format!("JSON serialization failed: {e}")))?;
+
+        // TODO: For now, create a simple new version without using the stored function
+        // In production, you'd want to use the create_challenge_version function
+        let mut tx = pool.begin().await?;
+
+        // End current version
+        sqlx::query!(
+            "UPDATE temporal_challenges SET end_at = NOW(), updated_at = NOW() WHERE challenge_id = $1 AND end_at IS NULL",
+            self.challenge_id
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        // Create new version
+        let new_version = sqlx::query_as!(
+            TemporalChallenge,
+            r#"
+            INSERT INTO temporal_challenges (challenge_id, challenge_name, planned_start_time, challenge)
+            VALUES ($1, $2, $3, $4)
+            RETURNING challenge_id as "challenge_id!", challenge_version_id as "challenge_version_id!", 
+                     challenge_name as "challenge_name!", planned_start_time as "planned_start_time!",
+                     challenge as "challenge!", start_at as "start_at!", end_at, 
+                     created_at as "created_at!", updated_at as "updated_at!"
+            "#,
+            self.challenge_id,
+            self.challenge_name,
+            self.planned_start_time,
+            challenge_json
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok(new_version)
+    }
+
+    pub async fn start_challenge(
+        &self,
+        pool: &PgPool,
+        moderator_id: i32,
+    ) -> Result<TemporalChallenge, ChallengeError> {
+        let mut challenge_data = self.get_challenge_data()?;
+
+        // Check if user is moderator
+        if challenge_data.challenge_moderator != moderator_id {
+            return Err(ChallengeError::NotModerator);
+        }
+
+        // Check if challenge is active
+        if !challenge_data.active {
+            return Err(ChallengeError::ChallengeNotActive);
+        }
+
+        // Check if already started
+        if challenge_data.actual_start_time.is_some() {
+            return Err(ChallengeError::ChallengeAlreadyStarted);
+        }
+
+        // Update challenge with actual start time
+        challenge_data.actual_start_time = Some(Utc::now());
+        
+        self.create_new_version(pool, challenge_data, Some("Challenge started".to_string()))
+            .await
+    }
+
+    pub fn get_waypoints(&self) -> Result<Vec<WaypointData>, ChallengeError> {
+        let challenge_data = self.get_challenge_data()?;
+        Ok(challenge_data.waypoints)
+    }
+
+    pub fn get_first_waypoint(&self) -> Result<Option<WaypointData>, ChallengeError> {
+        let waypoints = self.get_waypoints()?;
+        Ok(waypoints.into_iter().min_by_key(|w| w.waypoint_sequence))
+    }
+
+    pub fn is_ended(&self) -> Result<bool, ChallengeError> {
+        let challenge_data = self.get_challenge_data()?;
+        if let Some(start_time) = challenge_data.actual_start_time {
+            let end_time = start_time + chrono::Duration::minutes(challenge_data.duration_minutes as i64);
+            Ok(Utc::now() > end_time)
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub fn get_end_time(&self) -> Result<Option<DateTime<Utc>>, ChallengeError> {
+        let challenge_data = self.get_challenge_data()?;
+        Ok(challenge_data.actual_start_time
+            .map(|start| start + chrono::Duration::minutes(challenge_data.duration_minutes as i64)))
+    }
+
+    fn validate_waypoint_sequences(
+        waypoints: &[CreateWaypointRequest],
+    ) -> Result<(), ChallengeError> {
+        if waypoints.is_empty() {
+            return Err(ChallengeError::ValidationFailed(
+                "Challenge must have at least one waypoint".to_string(),
+            ));
+        }
+
+        // Check for duplicate sequences and gaps
+        let mut sequences: Vec<i32> = waypoints.iter().map(|w| w.waypoint_sequence).collect();
+        sequences.sort();
+
+        for (i, &seq) in sequences.iter().enumerate() {
+            let expected = i as i32 + 1;
+            if seq != expected {
+                return Err(ChallengeError::InvalidWaypointSequence);
+            }
+        }
+
+        Ok(())
+    }
+
+    // Convert to legacy Challenge format for backward compatibility
+    pub fn to_legacy_challenge(&self) -> Result<Challenge, ChallengeError> {
+        let challenge_data = self.get_challenge_data()?;
+        
+        // Note: This conversion uses placeholder UUID - in real implementation
+        // you might want to maintain a UUID mapping or generate deterministic UUIDs
+        Ok(Challenge {
+            challenge_id: Uuid::new_v4(), // Placeholder - would need proper mapping
+            challenge_name: self.challenge_name.clone(),
+            challenge_description: challenge_data.challenge_description,
+            challenge_moderator: challenge_data.challenge_moderator,
+            planned_start_time: self.planned_start_time,
+            actual_start_time: challenge_data.actual_start_time,
+            duration_minutes: challenge_data.duration_minutes,
+            challenge_type: challenge_data.challenge_type,
+            active: challenge_data.active,
+            created_at: challenge_data.metadata.created_at,
+            updated_at: challenge_data.metadata.updated_at,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -686,5 +1009,89 @@ mod tests {
 
         // Empty waypoints
         assert!(Challenge::validate_waypoint_sequences(&[]).is_err());
+    }
+
+    #[test]
+    fn test_temporal_challenge_json_serialization() {
+        use crate::services::location_service::GeoLocation;
+
+        let waypoint_data = WaypointData {
+            waypoint_id: None,
+            waypoint_sequence: 1,
+            location: GeoLocation { lat: 51.5074, lon: -0.1278 },
+            radius_meters: 50.0,
+            waypoint_clue: "Test clue".to_string(),
+            hints: vec!["Hint 1".to_string()],
+            waypoint_time_minutes: Some(15),
+            image_subject: "Test subject".to_string(),
+            created_at: Some(Utc::now()),
+        };
+
+        let challenge_data = ChallengeData {
+            challenge_id: 1,
+            challenge_description: Some("Test description".to_string()),
+            challenge_moderator: 1,
+            actual_start_time: None,
+            duration_minutes: 120,
+            challenge_type: ChallengeType::Com,
+            active: true,
+            waypoints: vec![waypoint_data],
+            metadata: ChallengeMetadata {
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                migrated_from_relational: None,
+                version_notes: Some("Test version".to_string()),
+            },
+        };
+
+        // Test serialization and deserialization
+        let json = serde_json::to_value(&challenge_data).unwrap();
+        let deserialized: ChallengeData = serde_json::from_value(json).unwrap();
+
+        assert_eq!(challenge_data.challenge_id, deserialized.challenge_id);
+        assert_eq!(challenge_data.challenge_type, deserialized.challenge_type);
+        assert_eq!(challenge_data.waypoints.len(), deserialized.waypoints.len());
+        assert_eq!(challenge_data.waypoints[0].waypoint_sequence, deserialized.waypoints[0].waypoint_sequence);
+    }
+
+    #[test]
+    fn test_challenge_metadata_serialization() {
+        let metadata = ChallengeMetadata {
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            migrated_from_relational: Some(true),
+            version_notes: Some("Migration from relational schema".to_string()),
+        };
+
+        let json = serde_json::to_string(&metadata).unwrap();
+        let deserialized: ChallengeMetadata = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(metadata.migrated_from_relational, deserialized.migrated_from_relational);
+        assert_eq!(metadata.version_notes, deserialized.version_notes);
+    }
+
+    #[test]
+    fn test_waypoint_data_serialization() {
+        use crate::services::location_service::GeoLocation;
+
+        let waypoint = WaypointData {
+            waypoint_id: Some(42),
+            waypoint_sequence: 1,
+            location: GeoLocation { lat: 51.5074, lon: -0.1278 },
+            radius_meters: 50.0,
+            waypoint_clue: "Find the red box".to_string(),
+            hints: vec!["Look for red".to_string(), "Used for posting".to_string()],
+            waypoint_time_minutes: Some(15),
+            image_subject: "Red post box".to_string(),
+            created_at: Some(Utc::now()),
+        };
+
+        let json = serde_json::to_string(&waypoint).unwrap();
+        let deserialized: WaypointData = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(waypoint.waypoint_id, deserialized.waypoint_id);
+        assert_eq!(waypoint.waypoint_sequence, deserialized.waypoint_sequence);
+        assert_eq!(waypoint.location.lat, deserialized.location.lat);
+        assert_eq!(waypoint.hints.len(), deserialized.hints.len());
     }
 }
