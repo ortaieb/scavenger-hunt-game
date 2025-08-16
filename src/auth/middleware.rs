@@ -207,7 +207,7 @@ impl AuthenticatedUser {
             Err((
                 StatusCode::FORBIDDEN,
                 Json(ErrorResponse {
-                    message: format!("Required role '{}' not found", role),
+                    message: format!("Required role '{role}' not found"),
                 }),
             ))
         }
@@ -230,7 +230,7 @@ impl AuthenticatedParticipant {
             Err((
                 StatusCode::FORBIDDEN,
                 Json(ErrorResponse {
-                    message: format!("Required role '{}' not found", role),
+                    message: format!("Required role '{role}' not found"),
                 }),
             ))
         }

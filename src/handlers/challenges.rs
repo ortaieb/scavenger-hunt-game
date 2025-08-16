@@ -97,7 +97,7 @@ pub async fn create_challenge(
             Err((
                 StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
-                    message: format!("Validation failed: {}", msg),
+                    message: format!("Validation failed: {msg}"),
                 }),
             ))
         }
@@ -440,9 +440,9 @@ pub async fn invite_participant(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{ChallengeType, CreateWaypointRequest};
-    use crate::services::location_service::GeoLocation;
-    use chrono::Utc;
+    use crate::models::ChallengeType;
+    
+    
 
     #[test]
     fn test_create_challenge_request_deserialization() {

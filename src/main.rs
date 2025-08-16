@@ -14,7 +14,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use auth::{AuthState, JwtService};
 use config::Config;
-use db::{create_connection_pool, run_migrations, DatabasePool};
+use db::{create_connection_pool, run_migrations};
 use routes::{create_api_router, AppState};
 use services::{AuthService, ImageService, LocationService};
 

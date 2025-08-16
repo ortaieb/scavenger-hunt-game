@@ -21,9 +21,9 @@ impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConfigError::MissingEnvironmentVariable(var) => {
-                write!(f, "Missing required environment variable: {}", var)
+                write!(f, "Missing required environment variable: {var}")
             }
-            ConfigError::InvalidValue(msg) => write!(f, "Invalid configuration value: {}", msg),
+            ConfigError::InvalidValue(msg) => write!(f, "Invalid configuration value: {msg}"),
         }
     }
 }

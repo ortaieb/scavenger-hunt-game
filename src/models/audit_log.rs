@@ -113,19 +113,71 @@ pub enum AuditError {
     InvalidEventData,
 }
 
+#[derive(Debug, Clone)]
+pub struct AuditLogEntry {
+    pub event_type: AuditEventType,
+    pub user_id: Option<i32>,
+    pub participant_id: Option<Uuid>,
+    pub challenge_id: Option<Uuid>,
+    pub waypoint_id: Option<i32>,
+    pub event_data: Option<JsonValue>,
+    pub outcome: Option<String>,
+    pub outcome_payload: Option<JsonValue>,
+}
+
+impl AuditLogEntry {
+    pub fn new(event_type: AuditEventType) -> Self {
+        Self {
+            event_type,
+            user_id: None,
+            participant_id: None,
+            challenge_id: None,
+            waypoint_id: None,
+            event_data: None,
+            outcome: None,
+            outcome_payload: None,
+        }
+    }
+
+    pub fn with_user_id(mut self, user_id: i32) -> Self {
+        self.user_id = Some(user_id);
+        self
+    }
+
+    pub fn with_participant_id(mut self, participant_id: Uuid) -> Self {
+        self.participant_id = Some(participant_id);
+        self
+    }
+
+    pub fn with_challenge_id(mut self, challenge_id: Uuid) -> Self {
+        self.challenge_id = Some(challenge_id);
+        self
+    }
+
+    pub fn with_waypoint_id(mut self, waypoint_id: i32) -> Self {
+        self.waypoint_id = Some(waypoint_id);
+        self
+    }
+
+    pub fn with_event_data(mut self, event_data: JsonValue) -> Self {
+        self.event_data = Some(event_data);
+        self
+    }
+
+    pub fn with_outcome(mut self, outcome: String) -> Self {
+        self.outcome = Some(outcome);
+        self
+    }
+
+    pub fn with_outcome_payload(mut self, outcome_payload: JsonValue) -> Self {
+        self.outcome_payload = Some(outcome_payload);
+        self
+    }
+}
+
 impl AuditLog {
     /// Create a new audit log entry
-    pub async fn create(
-        pool: &PgPool,
-        event_type: AuditEventType,
-        user_id: Option<i32>,
-        participant_id: Option<Uuid>,
-        challenge_id: Option<Uuid>,
-        waypoint_id: Option<i32>,
-        event_data: Option<JsonValue>,
-        outcome: Option<String>,
-        outcome_payload: Option<JsonValue>,
-    ) -> Result<AuditLog, AuditError> {
+    pub async fn create(pool: &PgPool, entry: AuditLogEntry) -> Result<AuditLog, AuditError> {
         let audit_log = sqlx::query_as!(
             AuditLog,
             r#"
@@ -139,14 +191,14 @@ impl AuditLog {
                      outcome, outcome_payload,
                      COALESCE(created_at, NOW()) as "created_at!"
             "#,
-            event_type as AuditEventType,
-            user_id,
-            participant_id,
-            challenge_id,
-            waypoint_id,
-            event_data,
-            outcome,
-            outcome_payload
+            entry.event_type as AuditEventType,
+            entry.user_id,
+            entry.participant_id,
+            entry.challenge_id,
+            entry.waypoint_id,
+            entry.event_data,
+            entry.outcome,
+            entry.outcome_payload
         )
         .fetch_one(pool)
         .await?;
@@ -168,14 +220,10 @@ impl AuditLog {
 
         Self::create(
             pool,
-            AuditEventType::UserRegistered,
-            Some(user_id),
-            None,
-            None,
-            None,
-            Some(serde_json::to_value(event_data)?),
-            Some("success".to_string()),
-            None,
+            AuditLogEntry::new(AuditEventType::UserRegistered)
+                .with_user_id(user_id)
+                .with_event_data(serde_json::to_value(event_data)?)
+                .with_outcome("success".to_string()),
         )
         .await
     }
@@ -196,17 +244,15 @@ impl AuditLog {
 
         let outcome = if success { "success" } else { "failed" };
 
-        Self::create(
-            pool,
-            AuditEventType::UserLogin,
-            user_id,
-            None,
-            None,
-            None,
-            Some(serde_json::to_value(event_data)?),
-            Some(outcome.to_string()),
-            None,
-        )
+        let mut entry = AuditLogEntry::new(AuditEventType::UserLogin)
+            .with_event_data(serde_json::to_value(event_data)?)
+            .with_outcome(outcome.to_string());
+        
+        if let Some(uid) = user_id {
+            entry = entry.with_user_id(uid);
+        }
+        
+        Self::create(pool, entry)
         .await
     }
 
@@ -228,14 +274,11 @@ impl AuditLog {
 
         Self::create(
             pool,
-            AuditEventType::ChallengeCreated,
-            Some(user_id),
-            None,
-            Some(challenge_id),
-            None,
-            Some(serde_json::to_value(event_data)?),
-            Some("success".to_string()),
-            None,
+            AuditLogEntry::new(AuditEventType::ChallengeCreated)
+                .with_user_id(user_id)
+                .with_challenge_id(challenge_id)
+                .with_event_data(serde_json::to_value(event_data)?)
+                .with_outcome("success".to_string()),
         )
         .await
     }
@@ -259,14 +302,11 @@ impl AuditLog {
 
         Self::create(
             pool,
-            AuditEventType::ChallengeStarted,
-            Some(user_id),
-            None,
-            Some(challenge_id),
-            None,
-            Some(serde_json::to_value(event_data)?),
-            Some("success".to_string()),
-            None,
+            AuditLogEntry::new(AuditEventType::ChallengeStarted)
+                .with_user_id(user_id)
+                .with_challenge_id(challenge_id)
+                .with_event_data(serde_json::to_value(event_data)?)
+                .with_outcome("success".to_string()),
         )
         .await
     }
@@ -288,14 +328,12 @@ impl AuditLog {
 
         Self::create(
             pool,
-            AuditEventType::ParticipantInvited,
-            Some(moderator_id),
-            Some(participant_id),
-            Some(challenge_id),
-            None,
-            Some(serde_json::to_value(event_data)?),
-            Some("success".to_string()),
-            None,
+            AuditLogEntry::new(AuditEventType::ParticipantInvited)
+                .with_user_id(moderator_id)
+                .with_participant_id(participant_id)
+                .with_challenge_id(challenge_id)
+                .with_event_data(serde_json::to_value(event_data)?)
+                .with_outcome("success".to_string()),
         )
         .await
     }
@@ -324,14 +362,12 @@ impl AuditLog {
 
         Self::create(
             pool,
-            AuditEventType::WaypointCheckedIn,
-            None,
-            Some(participant_id),
-            Some(challenge_id),
-            Some(waypoint_id),
-            Some(serde_json::to_value(event_data)?),
-            Some(outcome.to_string()),
-            None,
+            AuditLogEntry::new(AuditEventType::WaypointCheckedIn)
+                .with_participant_id(participant_id)
+                .with_challenge_id(challenge_id)
+                .with_waypoint_id(waypoint_id)
+                .with_event_data(serde_json::to_value(event_data)?)
+                .with_outcome(outcome.to_string()),
         )
         .await
     }
@@ -355,14 +391,12 @@ impl AuditLog {
 
         Self::create(
             pool,
-            AuditEventType::WaypointProofSubmitted,
-            None,
-            Some(participant_id),
-            Some(challenge_id),
-            Some(waypoint_id),
-            Some(serde_json::to_value(event_data)?),
-            Some("submitted".to_string()),
-            None,
+            AuditLogEntry::new(AuditEventType::WaypointProofSubmitted)
+                .with_participant_id(participant_id)
+                .with_challenge_id(challenge_id)
+                .with_waypoint_id(waypoint_id)
+                .with_event_data(serde_json::to_value(event_data)?)
+                .with_outcome("submitted".to_string()),
         )
         .await
     }
@@ -386,17 +420,18 @@ impl AuditLog {
             processing_time_seconds,
         };
 
-        Self::create(
-            pool,
-            AuditEventType::WaypointVerified,
-            None,
-            Some(participant_id),
-            Some(challenge_id),
-            Some(waypoint_id),
-            Some(serde_json::to_value(event_data)?),
-            Some(verification_result.to_string()),
-            outcome_payload,
-        )
+        let mut entry = AuditLogEntry::new(AuditEventType::WaypointVerified)
+            .with_participant_id(participant_id)
+            .with_challenge_id(challenge_id)
+            .with_waypoint_id(waypoint_id)
+            .with_event_data(serde_json::to_value(event_data)?)
+            .with_outcome(verification_result.to_string());
+        
+        if let Some(payload) = outcome_payload {
+            entry = entry.with_outcome_payload(payload);
+        }
+        
+        Self::create(pool, entry)
         .await
     }
 
@@ -419,14 +454,11 @@ impl AuditLog {
 
         Self::create(
             pool,
-            AuditEventType::LocationUpdated,
-            None,
-            Some(participant_id),
-            Some(challenge_id),
-            None,
-            Some(serde_json::to_value(event_data)?),
-            Some("success".to_string()),
-            None,
+            AuditLogEntry::new(AuditEventType::LocationUpdated)
+                .with_participant_id(participant_id)
+                .with_challenge_id(challenge_id)
+                .with_event_data(serde_json::to_value(event_data)?)
+                .with_outcome("success".to_string()),
         )
         .await
     }

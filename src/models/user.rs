@@ -27,7 +27,7 @@ impl fmt::Display for UserRole {
             UserRole::ChallengeInvitee => "challenge.invitee",
             UserRole::UserVerified => "user.verified",
         };
-        write!(f, "{}", role_str)
+        write!(f, "{role_str}")
     }
 }
 

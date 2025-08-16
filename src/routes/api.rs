@@ -76,9 +76,9 @@ pub fn create_api_router(state: AppState) -> Router {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::auth::JwtService;
-    use crate::config::Config;
+    
+    
+    
 
     #[tokio::test]
     async fn test_api_router_creation() {

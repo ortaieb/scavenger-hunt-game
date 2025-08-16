@@ -20,7 +20,7 @@ impl ValidationErrors {
     pub fn add_error(&mut self, field: &str, message: String) {
         self.errors
             .entry(field.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(message);
     }
 
@@ -46,6 +46,12 @@ pub trait Validator<T> {
 
 /// Email validator
 pub struct EmailValidator;
+
+impl Default for EmailValidator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl EmailValidator {
     pub fn new() -> Self {
@@ -91,6 +97,12 @@ pub struct PasswordValidator {
     require_lowercase: bool,
     require_digit: bool,
     require_special: bool,
+}
+
+impl Default for PasswordValidator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PasswordValidator {
@@ -191,17 +203,23 @@ impl Validator<String> for PasswordValidator {
 /// GPS coordinate validator
 pub struct GpsCoordinateValidator;
 
+impl Default for GpsCoordinateValidator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GpsCoordinateValidator {
     pub fn new() -> Self {
         Self
     }
 
     pub fn is_valid_latitude(lat: f64) -> bool {
-        lat >= -90.0 && lat <= 90.0
+        (-90.0..=90.0).contains(&lat)
     }
 
     pub fn is_valid_longitude(lon: f64) -> bool {
-        lon >= -180.0 && lon <= 180.0
+        (-180.0..=180.0).contains(&lon)
     }
 
     pub fn validate_coordinates(lat: f64, lon: f64) -> ValidationResult<()> {
@@ -210,7 +228,7 @@ impl GpsCoordinateValidator {
         if !Self::is_valid_latitude(lat) {
             errors.add_error(
                 "latitude",
-                format!("Latitude must be between -90 and 90 degrees, got {}", lat),
+                format!("Latitude must be between -90 and 90 degrees, got {lat}"),
             );
         }
 
@@ -218,8 +236,7 @@ impl GpsCoordinateValidator {
             errors.add_error(
                 "longitude",
                 format!(
-                    "Longitude must be between -180 and 180 degrees, got {}",
-                    lon
+                    "Longitude must be between -180 and 180 degrees, got {lon}"
                 ),
             );
         }
@@ -236,6 +253,12 @@ impl GpsCoordinateValidator {
 pub struct StringLengthValidator {
     min_length: Option<usize>,
     max_length: Option<usize>,
+}
+
+impl Default for StringLengthValidator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl StringLengthValidator {
@@ -265,7 +288,7 @@ impl Validator<String> for StringLengthValidator {
             if value.len() < min_len {
                 errors.add_error(
                     "length",
-                    format!("Must be at least {} characters long", min_len),
+                    format!("Must be at least {min_len} characters long"),
                 );
             }
         }
@@ -274,7 +297,7 @@ impl Validator<String> for StringLengthValidator {
             if value.len() > max_len {
                 errors.add_error(
                     "length",
-                    format!("Must be no more than {} characters long", max_len),
+                    format!("Must be no more than {max_len} characters long"),
                 );
             }
         }
@@ -289,6 +312,12 @@ impl Validator<String> for StringLengthValidator {
 
 /// Required field validator
 pub struct RequiredValidator;
+
+impl Default for RequiredValidator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl RequiredValidator {
     pub fn new() -> Self {
@@ -327,6 +356,15 @@ pub struct NumericRangeValidator<T> {
     max: Option<T>,
 }
 
+impl<T> Default for NumericRangeValidator<T>
+where
+    T: PartialOrd + Copy,
+ {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> NumericRangeValidator<T>
 where
     T: PartialOrd + Copy,
@@ -358,13 +396,13 @@ where
 
         if let Some(min_val) = self.min {
             if *value < min_val {
-                errors.add_error("range", format!("Value must be at least {}", min_val));
+                errors.add_error("range", format!("Value must be at least {min_val}"));
             }
         }
 
         if let Some(max_val) = self.max {
             if *value > max_val {
-                errors.add_error("range", format!("Value must be no more than {}", max_val));
+                errors.add_error("range", format!("Value must be no more than {max_val}"));
             }
         }
 
@@ -392,7 +430,7 @@ pub mod validators {
         if let Err(errors) = EmailValidator::new().validate(&email.to_string()) {
             for (field, messages) in errors.errors {
                 for message in messages {
-                    all_errors.add_error(&format!("email.{}", field), message);
+                    all_errors.add_error(&format!("email.{field}"), message);
                 }
             }
         }
@@ -406,7 +444,7 @@ pub mod validators {
         if let Err(errors) = password_validator.validate(&password.to_string()) {
             for (field, messages) in errors.errors {
                 for message in messages {
-                    all_errors.add_error(&format!("password.{}", field), message);
+                    all_errors.add_error(&format!("password.{field}"), message);
                 }
             }
         }
@@ -418,7 +456,7 @@ pub mod validators {
             if let Err(errors) = nickname_validator.validate(&nick.to_string()) {
                 for (field, messages) in errors.errors {
                     for message in messages {
-                        all_errors.add_error(&format!("nickname.{}", field), message);
+                        all_errors.add_error(&format!("nickname.{field}"), message);
                     }
                 }
             }
@@ -445,7 +483,7 @@ pub mod validators {
         if let Err(errors) = name_validator.validate(&name.to_string()) {
             for (field, messages) in errors.errors {
                 for message in messages {
-                    all_errors.add_error(&format!("name.{}", field), message);
+                    all_errors.add_error(&format!("name.{field}"), message);
                 }
             }
         }
@@ -457,7 +495,7 @@ pub mod validators {
             if let Err(errors) = desc_validator.validate(&desc.to_string()) {
                 for (field, messages) in errors.errors {
                     for message in messages {
-                        all_errors.add_error(&format!("description.{}", field), message);
+                        all_errors.add_error(&format!("description.{field}"), message);
                     }
                 }
             }
@@ -469,7 +507,7 @@ pub mod validators {
         if let Err(errors) = duration_validator.validate(&duration_minutes) {
             for (field, messages) in errors.errors {
                 for message in messages {
-                    all_errors.add_error(&format!("duration.{}", field), message);
+                    all_errors.add_error(&format!("duration.{field}"), message);
                 }
             }
         }

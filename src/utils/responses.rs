@@ -154,7 +154,7 @@ impl ResponseBuilder {
         Self::error(
             StatusCode::NOT_FOUND,
             "NOT_FOUND".to_string(),
-            format!("{} not found", resource),
+            format!("{resource} not found"),
         )
     }
 
@@ -224,7 +224,7 @@ pub mod helpers {
         for (field, message) in errors {
             field_errors
                 .entry(field)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(message);
         }
 

@@ -321,7 +321,7 @@ pub async fn submit_waypoint_proof(
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
-                message: format!("Invalid image format: {}", e),
+                message: format!("Invalid image format: {e}"),
             }),
         ));
     }
@@ -386,7 +386,7 @@ pub async fn submit_waypoint_proof(
                 waypoint_id,
                 waypoint.waypoint_sequence,
                 "failed",
-                Some(&[format!("Validation service error: {}", e)]),
+                Some(&[format!("Validation service error: {e}")]),
                 validation_start.elapsed().as_secs_f64(),
                 None,
             )

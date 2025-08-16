@@ -233,14 +233,13 @@ impl ImageService {
 
         let extension = filename
             .split('.')
-            .last()
+            .next_back()
             .ok_or_else(|| ImageError::InvalidImagePath("No file extension".to_string()))?
             .to_lowercase();
 
         if !allowed_extensions.contains(&extension.as_str()) {
             return Err(ImageError::InvalidImagePath(format!(
-                "Unsupported file format: {}",
-                extension
+                "Unsupported file format: {extension}"
             )));
         }
 

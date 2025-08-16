@@ -16,13 +16,14 @@ pub enum ChallengeType {
     Res, // Restricted
 }
 
-impl ToString for ChallengeType {
-    fn to_string(&self) -> String {
-        match self {
-            ChallengeType::Rec => "REC".to_string(),
-            ChallengeType::Com => "COM".to_string(),
-            ChallengeType::Res => "RES".to_string(),
-        }
+impl std::fmt::Display for ChallengeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            ChallengeType::Rec => "REC",
+            ChallengeType::Com => "COM",
+            ChallengeType::Res => "RES",
+        };
+        write!(f, "{s}")
     }
 }
 
