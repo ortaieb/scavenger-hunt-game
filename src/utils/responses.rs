@@ -222,10 +222,7 @@ pub mod helpers {
         let mut field_errors: HashMap<String, Vec<String>> = HashMap::new();
 
         for (field, message) in errors {
-            field_errors
-                .entry(field)
-                .or_default()
-                .push(message);
+            field_errors.entry(field).or_default().push(message);
         }
 
         field_errors

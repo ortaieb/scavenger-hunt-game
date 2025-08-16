@@ -441,8 +441,6 @@ pub async fn invite_participant(
 mod tests {
     use super::*;
     use crate::models::ChallengeType;
-    
-    
 
     #[test]
     fn test_create_challenge_request_deserialization() {

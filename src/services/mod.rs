@@ -6,6 +6,4 @@ pub use auth_service::{
     AuthResponse, AuthService, AuthServiceError, ParticipantAuthResponse, ParticipantTokenRequest,
 };
 pub use image_service::ImageService;
-pub use location_service::{
-    LocationService, LocationValidationRequest,
-};
+pub use location_service::{LocationService, LocationValidationRequest};

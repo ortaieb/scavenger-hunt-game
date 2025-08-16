@@ -76,9 +76,6 @@ pub fn create_api_router(state: AppState) -> Router {
 
 #[cfg(test)]
 mod tests {
-    
-    
-    
 
     #[tokio::test]
     async fn test_api_router_creation() {

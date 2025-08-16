@@ -247,13 +247,12 @@ impl AuditLog {
         let mut entry = AuditLogEntry::new(AuditEventType::UserLogin)
             .with_event_data(serde_json::to_value(event_data)?)
             .with_outcome(outcome.to_string());
-        
+
         if let Some(uid) = user_id {
             entry = entry.with_user_id(uid);
         }
-        
-        Self::create(pool, entry)
-        .await
+
+        Self::create(pool, entry).await
     }
 
     /// Log challenge creation event
@@ -426,13 +425,12 @@ impl AuditLog {
             .with_waypoint_id(waypoint_id)
             .with_event_data(serde_json::to_value(event_data)?)
             .with_outcome(verification_result.to_string());
-        
+
         if let Some(payload) = outcome_payload {
             entry = entry.with_outcome_payload(payload);
         }
-        
-        Self::create(pool, entry)
-        .await
+
+        Self::create(pool, entry).await
     }
 
     /// Log location update event

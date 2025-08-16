@@ -224,7 +224,6 @@ impl AuthService {
 mod tests {
     use super::*;
     use crate::auth::JwtService;
-    
 
     async fn create_test_auth_service() -> AuthService {
         // Note: This would need a test database setup in real tests

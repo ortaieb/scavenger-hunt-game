@@ -235,9 +235,7 @@ impl GpsCoordinateValidator {
         if !Self::is_valid_longitude(lon) {
             errors.add_error(
                 "longitude",
-                format!(
-                    "Longitude must be between -180 and 180 degrees, got {lon}"
-                ),
+                format!("Longitude must be between -180 and 180 degrees, got {lon}"),
             );
         }
 
@@ -359,7 +357,7 @@ pub struct NumericRangeValidator<T> {
 impl<T> Default for NumericRangeValidator<T>
 where
     T: PartialOrd + Copy,
- {
+{
     fn default() -> Self {
         Self::new()
     }
