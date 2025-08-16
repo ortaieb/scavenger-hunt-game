@@ -175,6 +175,32 @@ impl AuditLogEntry {
     }
 }
 
+/// Parameters for logging waypoint check-in events
+#[derive(Debug, Clone)]
+pub struct WaypointCheckInParams {
+    pub participant_id: Uuid,
+    pub challenge_id: Uuid,
+    pub waypoint_id: i32,
+    pub waypoint_sequence: i32,
+    pub location_lat: f64,
+    pub location_lon: f64,
+    pub distance_from_target: f64,
+    pub within_radius: bool,
+}
+
+/// Parameters for logging waypoint verification events
+#[derive(Debug, Clone)]
+pub struct WaypointVerificationParams<'a> {
+    pub participant_id: Uuid,
+    pub challenge_id: Uuid,
+    pub waypoint_id: i32,
+    pub waypoint_sequence: i32,
+    pub verification_result: &'a str,
+    pub verification_reasons: Option<&'a [String]>,
+    pub processing_time_seconds: f64,
+    pub outcome_payload: Option<JsonValue>,
+}
+
 impl AuditLog {
     /// Create a new audit log entry
     pub async fn create(pool: &PgPool, entry: AuditLogEntry) -> Result<AuditLog, AuditError> {
@@ -340,31 +366,28 @@ impl AuditLog {
     /// Log waypoint check-in event
     pub async fn log_waypoint_checked_in(
         pool: &PgPool,
-        participant_id: Uuid,
-        challenge_id: Uuid,
-        waypoint_id: i32,
-        waypoint_sequence: i32,
-        location_lat: f64,
-        location_lon: f64,
-        distance_from_target: f64,
-        within_radius: bool,
+        params: WaypointCheckInParams,
     ) -> Result<AuditLog, AuditError> {
         let event_data = WaypointCheckedInData {
-            waypoint_sequence,
-            location_lat,
-            location_lon,
-            distance_from_target,
-            within_radius,
+            waypoint_sequence: params.waypoint_sequence,
+            location_lat: params.location_lat,
+            location_lon: params.location_lon,
+            distance_from_target: params.distance_from_target,
+            within_radius: params.within_radius,
         };
 
-        let outcome = if within_radius { "success" } else { "failed" };
+        let outcome = if params.within_radius {
+            "success"
+        } else {
+            "failed"
+        };
 
         Self::create(
             pool,
             AuditLogEntry::new(AuditEventType::WaypointCheckedIn)
-                .with_participant_id(participant_id)
-                .with_challenge_id(challenge_id)
-                .with_waypoint_id(waypoint_id)
+                .with_participant_id(params.participant_id)
+                .with_challenge_id(params.challenge_id)
+                .with_waypoint_id(params.waypoint_id)
                 .with_event_data(serde_json::to_value(event_data)?)
                 .with_outcome(outcome.to_string()),
         )
@@ -403,30 +426,23 @@ impl AuditLog {
     /// Log waypoint verification event
     pub async fn log_waypoint_verified(
         pool: &PgPool,
-        participant_id: Uuid,
-        challenge_id: Uuid,
-        waypoint_id: i32,
-        waypoint_sequence: i32,
-        verification_result: &str,
-        verification_reasons: Option<&[String]>,
-        processing_time_seconds: f64,
-        outcome_payload: Option<JsonValue>,
+        params: WaypointVerificationParams<'_>,
     ) -> Result<AuditLog, AuditError> {
         let event_data = WaypointVerifiedData {
-            waypoint_sequence,
-            verification_result: verification_result.to_string(),
-            verification_reasons: verification_reasons.map(|r| r.to_vec()),
-            processing_time_seconds,
+            waypoint_sequence: params.waypoint_sequence,
+            verification_result: params.verification_result.to_string(),
+            verification_reasons: params.verification_reasons.map(|r| r.to_vec()),
+            processing_time_seconds: params.processing_time_seconds,
         };
 
         let mut entry = AuditLogEntry::new(AuditEventType::WaypointVerified)
-            .with_participant_id(participant_id)
-            .with_challenge_id(challenge_id)
-            .with_waypoint_id(waypoint_id)
+            .with_participant_id(params.participant_id)
+            .with_challenge_id(params.challenge_id)
+            .with_waypoint_id(params.waypoint_id)
             .with_event_data(serde_json::to_value(event_data)?)
-            .with_outcome(verification_result.to_string());
+            .with_outcome(params.verification_result.to_string());
 
-        if let Some(payload) = outcome_payload {
+        if let Some(payload) = params.outcome_payload {
             entry = entry.with_outcome_payload(payload);
         }
 

@@ -7,11 +7,11 @@ pub type DatabasePool = PgPool;
 #[derive(Debug, thiserror::Error)]
 pub enum DatabaseError {
     #[error("Database connection failed: {0}")]
-    ConnectionFailed(#[from] sqlx::Error),
+    Connection(#[from] sqlx::Error),
     #[error("Database migration failed: {0}")]
-    MigrationFailed(#[from] sqlx::migrate::MigrateError),
+    Migration(#[from] sqlx::migrate::MigrateError),
     #[error("Database operation failed: {0}")]
-    OperationFailed(sqlx::Error),
+    Operation(sqlx::Error),
 }
 
 pub async fn create_connection_pool(config: &Config) -> Result<DatabasePool, DatabaseError> {
@@ -25,7 +25,7 @@ pub async fn create_connection_pool(config: &Config) -> Result<DatabasePool, Dat
         .max_lifetime(Duration::from_secs(1800))
         .connect(&config.database_url)
         .await
-        .map_err(DatabaseError::ConnectionFailed)?;
+        .map_err(DatabaseError::Connection)?;
 
     tracing::info!("Database connection pool created successfully");
     Ok(pool)
@@ -44,7 +44,7 @@ pub async fn health_check(pool: &DatabasePool) -> Result<(), DatabaseError> {
     sqlx::query("SELECT 1")
         .execute(pool)
         .await
-        .map_err(DatabaseError::OperationFailed)?;
+        .map_err(DatabaseError::Operation)?;
 
     Ok(())
 }

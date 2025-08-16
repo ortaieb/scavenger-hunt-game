@@ -125,14 +125,16 @@ pub async fn check_in_waypoint(
     // Log the check-in attempt
     if let Err(e) = AuditLog::log_waypoint_checked_in(
         &state.pool,
-        participant_id,
-        participant.challenge_id,
-        waypoint_id,
-        waypoint.waypoint_sequence,
-        request.location.lat,
-        request.location.lon,
-        validation_result.distance_meters,
-        validation_result.is_valid,
+        crate::models::audit_log::WaypointCheckInParams {
+            participant_id,
+            challenge_id: participant.challenge_id,
+            waypoint_id,
+            waypoint_sequence: waypoint.waypoint_sequence,
+            location_lat: request.location.lat,
+            location_lon: request.location.lon,
+            distance_from_target: validation_result.distance_meters,
+            within_radius: validation_result.is_valid,
+        },
     )
     .await
     {
@@ -381,14 +383,16 @@ pub async fn submit_waypoint_proof(
             // Log validation failure
             if let Err(log_err) = AuditLog::log_waypoint_verified(
                 &state.pool,
-                participant_id,
-                participant.challenge_id,
-                waypoint_id,
-                waypoint.waypoint_sequence,
-                "failed",
-                Some(&[format!("Validation service error: {e}")]),
-                validation_start.elapsed().as_secs_f64(),
-                None,
+                crate::models::audit_log::WaypointVerificationParams {
+                    participant_id,
+                    challenge_id: participant.challenge_id,
+                    waypoint_id,
+                    waypoint_sequence: waypoint.waypoint_sequence,
+                    verification_result: "failed",
+                    verification_reasons: Some(&[format!("Validation service error: {e}")]),
+                    processing_time_seconds: validation_start.elapsed().as_secs_f64(),
+                    outcome_payload: None,
+                },
             )
             .await
             {
@@ -433,14 +437,16 @@ pub async fn submit_waypoint_proof(
         // Log successful verification
         if let Err(e) = AuditLog::log_waypoint_verified(
             &state.pool,
-            participant_id,
-            participant.challenge_id,
-            waypoint_id,
-            waypoint.waypoint_sequence,
-            "accepted",
-            validation_result.reasons.as_deref(),
-            processing_time,
-            None,
+            crate::models::audit_log::WaypointVerificationParams {
+                participant_id,
+                challenge_id: participant.challenge_id,
+                waypoint_id,
+                waypoint_sequence: waypoint.waypoint_sequence,
+                verification_result: "accepted",
+                verification_reasons: validation_result.reasons.as_deref(),
+                processing_time_seconds: processing_time,
+                outcome_payload: None,
+            },
         )
         .await
         {
@@ -464,14 +470,16 @@ pub async fn submit_waypoint_proof(
         // Log failed verification
         if let Err(e) = AuditLog::log_waypoint_verified(
             &state.pool,
-            participant_id,
-            participant.challenge_id,
-            waypoint_id,
-            waypoint.waypoint_sequence,
-            "rejected",
-            validation_result.reasons.as_deref(),
-            processing_time,
-            None,
+            crate::models::audit_log::WaypointVerificationParams {
+                participant_id,
+                challenge_id: participant.challenge_id,
+                waypoint_id,
+                waypoint_sequence: waypoint.waypoint_sequence,
+                verification_result: "rejected",
+                verification_reasons: validation_result.reasons.as_deref(),
+                processing_time_seconds: processing_time,
+                outcome_payload: None,
+            },
         )
         .await
         {
