@@ -79,3 +79,9 @@ docs/_build/
 # Local configuration
 local.toml
 config.local.*
+
+# SQLx cache
+.sqlx/
+
+# Database data
+data/
