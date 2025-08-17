@@ -3,10 +3,8 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use uuid::Uuid;
-
 use crate::auth::{AuthenticatedParticipant, ErrorResponse};
-use crate::models::{AuditLog, ChallengeParticipant, Waypoint, WaypointState};
+use crate::models::{TemporalChallenge, ChallengeParticipant, WaypointData, WaypointState};
 use crate::routes::AppState;
 use crate::services::LocationValidationRequest;
 

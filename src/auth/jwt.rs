@@ -17,8 +17,8 @@ pub struct ParticipantClaims {
     pub iss: String,
     pub upn: String,
     pub groups: Vec<String>,
-    pub clg: Uuid, // Challenge ID
-    pub usr: i32,  // User ID
+    pub clg: i32, // Challenge ID - now integer for temporal challenges
+    pub usr: i32, // User ID
     pub exp: i64,
     pub iat: i64,
 }
@@ -69,7 +69,7 @@ impl JwtService {
         &self,
         user_id: i32,
         participant_id: Uuid,
-        challenge_id: Uuid,
+        challenge_id: i32, // Now integer for temporal challenges
         roles: Vec<String>,
         challenge_end_time: chrono::DateTime<Utc>,
     ) -> Result<String, AuthError> {
@@ -172,7 +172,7 @@ mod tests {
         let roles = vec!["challenge.participant".to_string()];
         let user_id = 1;
         let participant_id = Uuid::new_v4();
-        let challenge_id = Uuid::new_v4();
+        let challenge_id = 123; // Now integer for temporal challenges
         let challenge_end_time = Utc::now() + Duration::hours(2);
 
         let token = jwt_service

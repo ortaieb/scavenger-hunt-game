@@ -222,14 +222,11 @@ mod tests {
     #[tokio::test]
     async fn test_participant_token_request_deserialization() {
         let json = r#"{
-            "challenge-id": "550e8400-e29b-41d4-a716-446655440000"
+            "challenge-id": 123
         }"#;
 
         let request: ParticipantTokenRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(
-            request.challenge_id.to_string(),
-            "550e8400-e29b-41d4-a716-446655440000"
-        );
+        assert_eq!(request.challenge_id, 123);
     }
 
     #[test]

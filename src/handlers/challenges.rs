@@ -3,13 +3,12 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use uuid::Uuid;
 
 use crate::auth::{AuthenticatedUser, ErrorResponse};
-use crate::models::challenge::TemporalChallenge;
+use crate::models::challenge::{ChallengeParticipant, TemporalChallenge};
 use crate::models::{
-    AuditLog, Challenge, ChallengeError, ChallengeResponse, CreateChallengeRequest,
-    StartChallengeRequest, StartChallengeResponse,
+    ChallengeError, ChallengeResponse, CreateChallengeRequest, StartChallengeRequest,
+    StartChallengeResponse,
 };
 use crate::routes::AppState;
 
@@ -59,22 +58,10 @@ pub async fn create_challenge(
 
     match TemporalChallenge::create_new(&state.pool, user.user_id, request.clone()).await {
         Ok(temporal_challenge) => {
-            // Convert to legacy format for response compatibility
-            let challenge = temporal_challenge.to_legacy_challenge().map_err(|e| {
-                tracing::error!(
-                    "Failed to convert temporal challenge to legacy format: {}",
-                    e
-                );
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        message: "Internal server error".to_string(),
-                    }),
-                )
-            })?;
+            // Use the temporal challenge directly
 
             // Get challenge data for logging
-            let challenge_data = temporal_challenge.get_challenge_data().map_err(|e| {
+            let _challenge_data = temporal_challenge.get_challenge_data().map_err(|e| {
                 tracing::error!("Failed to get challenge data: {}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -84,12 +71,14 @@ pub async fn create_challenge(
                 )
             })?;
 
-            // Log challenge creation
+            // TODO: Update audit logging to use integer IDs instead of UUIDs
+            // Temporarily disabled during table replacement migration
+            /*
             if let Err(e) = AuditLog::log_challenge_created(
                 &state.pool,
                 user.user_id,
-                challenge.challenge_id,
-                &challenge.challenge_name,
+                temporal_challenge.challenge_id,
+                &temporal_challenge.challenge_name,
                 &challenge_data.challenge_type.to_string(),
                 request.waypoints.len() as i32,
             )
@@ -97,6 +86,7 @@ pub async fn create_challenge(
             {
                 tracing::warn!("Failed to log challenge creation: {}", e);
             }
+            */
 
             // Get waypoints from temporal challenge
             let waypoints_data = temporal_challenge.get_waypoints().map_err(|e| {
@@ -109,38 +99,18 @@ pub async fn create_challenge(
                 )
             })?;
 
-            // Convert waypoints to legacy format
-            let waypoints = waypoints_data
-                .into_iter()
-                .map(|wd| {
-                    crate::models::Waypoint {
-                        waypoint_id: wd.waypoint_id.unwrap_or(0), // Placeholder
-                        challenge_id: challenge.challenge_id,
-                        waypoint_sequence: wd.waypoint_sequence,
-                        location_lat: wd.location.lat,
-                        location_lon: wd.location.lon,
-                        radius_meters: wd.radius_meters,
-                        waypoint_clue: wd.waypoint_clue,
-                        hints: Some(wd.hints),
-                        waypoint_time_minutes: wd.waypoint_time_minutes,
-                        image_subject: wd.image_subject,
-                        created_at: wd.created_at.unwrap_or_else(chrono::Utc::now),
-                    }
-                })
-                .collect();
-
             // For new challenges, participants list is empty
             let participants = vec![];
 
             tracing::info!(
-                "Challenge created successfully: {} (temporal ID: {})",
-                challenge.challenge_id,
-                temporal_challenge.challenge_id
+                "Challenge created successfully: {} (version ID: {})",
+                temporal_challenge.challenge_id,
+                temporal_challenge.challenge_version_id
             );
 
             let response = ChallengeResponse {
-                challenge,
-                waypoints,
+                challenge: temporal_challenge,
+                waypoints: waypoints_data,
                 participants,
             };
 
@@ -183,7 +153,7 @@ pub async fn create_challenge(
 pub async fn get_challenge(
     auth_user: AuthenticatedUser,
     State(state): State<AppState>,
-    Path(challenge_id): Path<Uuid>,
+    Path(challenge_id): Path<i32>,
 ) -> Result<(StatusCode, Json<ChallengeResponse>), (StatusCode, Json<ErrorResponse>)> {
     tracing::info!(
         "Challenge retrieval request from user: {} for challenge: {}",
@@ -191,19 +161,25 @@ pub async fn get_challenge(
         challenge_id
     );
 
-    match Challenge::get_by_id(&state.pool, challenge_id).await {
-        Ok(challenge) => {
-            let waypoints = challenge
-                .get_waypoints(&state.pool)
-                .await
-                .unwrap_or_default();
-            let participants = challenge
-                .get_participants(&state.pool)
-                .await
-                .unwrap_or_default();
+    match TemporalChallenge::get_current_by_id(&state.pool, challenge_id).await {
+        Ok(temporal_challenge) => {
+            let waypoints = temporal_challenge.get_waypoints().map_err(|e| {
+                tracing::error!("Failed to get waypoints: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        message: "Failed to get challenge waypoints".to_string(),
+                    }),
+                )
+            })?;
+
+            let participants =
+                ChallengeParticipant::get_participants_for_challenge(&state.pool, challenge_id)
+                    .await
+                    .unwrap_or_default();
 
             let response = ChallengeResponse {
-                challenge,
+                challenge: temporal_challenge,
                 waypoints,
                 participants,
             };
@@ -276,35 +252,87 @@ pub async fn start_challenge(
     };
 
     // Get challenge
-    let mut challenge = match Challenge::get_by_id(&state.pool, request.challenge_id).await {
-        Ok(challenge) => challenge,
-        Err(ChallengeError::ChallengeNotFound) => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse {
-                    message: "Challenge not found".to_string(),
-                }),
-            ));
-        }
-        Err(e) => {
-            tracing::error!("Failed to get challenge: {}", e);
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    message: "Failed to get challenge".to_string(),
-                }),
-            ));
-        }
-    };
+    let temporal_challenge =
+        match TemporalChallenge::get_current_by_id(&state.pool, request.challenge_id).await {
+            Ok(challenge) => challenge,
+            Err(ChallengeError::ChallengeNotFound) => {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        message: "Challenge not found".to_string(),
+                    }),
+                ));
+            }
+            Err(e) => {
+                tracing::error!("Failed to get challenge: {}", e);
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        message: "Failed to get challenge".to_string(),
+                    }),
+                ));
+            }
+        };
 
-    match challenge.start_challenge(&state.pool, user.user_id).await {
-        Ok(response) => {
-            // Log challenge start
+    match temporal_challenge
+        .start_challenge(&state.pool, user.user_id)
+        .await
+    {
+        Ok(started_challenge) => {
+            // Get participants for the response
+            let participants = ChallengeParticipant::get_participants_for_challenge(
+                &state.pool,
+                request.challenge_id,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get participants: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        message: "Failed to get participants".to_string(),
+                    }),
+                )
+            })?;
+
+            // Get challenge data for response
+            let challenge_data = started_challenge.get_challenge_data().map_err(|e| {
+                tracing::error!("Failed to get challenge data: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        message: "Failed to get challenge data".to_string(),
+                    }),
+                )
+            })?;
+
+            let actual_start_time = challenge_data
+                .actual_start_time
+                .unwrap_or_else(chrono::Utc::now);
+
+            // Build response
+            let response = StartChallengeResponse {
+                challenge_id: started_challenge.challenge_id,
+                planned_start_time: started_challenge.planned_start_time,
+                actual_start_time,
+                duration: challenge_data.duration_minutes,
+                participants: participants
+                    .into_iter()
+                    .map(|p| crate::models::challenge::ParticipantInfo {
+                        user_id: p.user_id,
+                        participant_id: p.participant_id,
+                    })
+                    .collect(),
+            };
+
+            // TODO: Update audit logging to use integer IDs instead of UUIDs
+            // Temporarily disabled during table replacement migration
+            /*
             if let Err(e) = AuditLog::log_challenge_started(
                 &state.pool,
                 user.user_id,
-                challenge.challenge_id,
-                &challenge.challenge_name,
+                started_challenge.challenge_id,
+                &started_challenge.challenge_name,
                 response.participants.len() as i32,
                 response.planned_start_time,
                 response.actual_start_time,
@@ -313,8 +341,12 @@ pub async fn start_challenge(
             {
                 tracing::warn!("Failed to log challenge start: {}", e);
             }
+            */
 
-            tracing::info!("Challenge started successfully: {}", challenge.challenge_id);
+            tracing::info!(
+                "Challenge started successfully: {}",
+                started_challenge.challenge_id
+            );
 
             Ok((StatusCode::CREATED, Json(response)))
         }
@@ -366,7 +398,7 @@ pub async fn start_challenge(
 pub async fn invite_participant(
     auth_user: AuthenticatedUser,
     State(state): State<AppState>,
-    Path((challenge_id, user_id)): Path<(Uuid, i32)>,
+    Path((challenge_id, user_id)): Path<(i32, i32)>,
     Json(nickname): Json<Option<String>>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
     tracing::info!(
@@ -408,29 +440,42 @@ pub async fn invite_participant(
     };
 
     // Get challenge
-    let challenge = match Challenge::get_by_id(&state.pool, challenge_id).await {
-        Ok(challenge) => challenge,
-        Err(ChallengeError::ChallengeNotFound) => {
-            return Err((
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse {
-                    message: "Challenge not found".to_string(),
-                }),
-            ));
-        }
-        Err(e) => {
-            tracing::error!("Failed to get challenge: {}", e);
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    message: "Failed to get challenge".to_string(),
-                }),
-            ));
-        }
-    };
+    let temporal_challenge =
+        match TemporalChallenge::get_current_by_id(&state.pool, challenge_id).await {
+            Ok(challenge) => challenge,
+            Err(ChallengeError::ChallengeNotFound) => {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        message: "Challenge not found".to_string(),
+                    }),
+                ));
+            }
+            Err(e) => {
+                tracing::error!("Failed to get challenge: {}", e);
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        message: "Failed to get challenge".to_string(),
+                    }),
+                ));
+            }
+        };
+
+    // Get challenge data to check moderator
+    let challenge_data = temporal_challenge.get_challenge_data().map_err(|e| {
+        tracing::error!("Failed to get challenge data: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                message: "Failed to get challenge data".to_string(),
+            }),
+        )
+    })?;
 
     // Check if moderator is authorized for this challenge
-    if challenge.challenge_moderator != moderator.user_id && !auth_user.has_role("game.admin") {
+    if challenge_data.challenge_moderator != moderator.user_id && !auth_user.has_role("game.admin")
+    {
         return Err((
             StatusCode::FORBIDDEN,
             Json(ErrorResponse {
@@ -439,12 +484,18 @@ pub async fn invite_participant(
         ));
     }
 
-    match challenge
-        .invite_participant(&state.pool, user_id, nickname.clone())
-        .await
+    match ChallengeParticipant::create_for_challenge(
+        &state.pool,
+        challenge_id,
+        user_id,
+        nickname.clone(),
+    )
+    .await
     {
-        Ok(participant) => {
-            // Log participant invitation
+        Ok(_participant) => {
+            // TODO: Update audit logging to use integer IDs instead of UUIDs
+            // Temporarily disabled during table replacement migration
+            /*
             if let Err(e) = AuditLog::log_participant_invited(
                 &state.pool,
                 moderator.user_id,
@@ -457,6 +508,7 @@ pub async fn invite_participant(
             {
                 tracing::warn!("Failed to log participant invitation: {}", e);
             }
+            */
 
             tracing::info!(
                 "Participant invited successfully: {} to challenge: {}",
@@ -527,13 +579,10 @@ mod tests {
     #[test]
     fn test_start_challenge_request_deserialization() {
         let json = r#"{
-            "challenge-id": "550e8400-e29b-41d4-a716-446655440000"
+            "challenge-id": 123
         }"#;
 
         let request: StartChallengeRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(
-            request.challenge_id.to_string(),
-            "550e8400-e29b-41d4-a716-446655440000"
-        );
+        assert_eq!(request.challenge_id, 123);
     }
 }

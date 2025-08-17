@@ -26,7 +26,7 @@ pub struct AuditLog {
     pub event_type: AuditEventType,         // NOT NULL
     pub user_id: Option<i32>,               // Can be null FK
     pub participant_id: Option<Uuid>,       // Can be null FK
-    pub challenge_id: Option<Uuid>,         // Can be null FK
+    pub challenge_id: Option<i32>,          // Can be null FK - now integer for temporal challenges
     pub waypoint_id: Option<i32>,           // Can be null FK
     pub event_data: Option<JsonValue>,      // Can be null JSONB
     pub outcome: Option<String>,            // Can be null VARCHAR(50)
@@ -119,7 +119,7 @@ pub struct AuditLogEntry {
     pub event_type: AuditEventType,
     pub user_id: Option<i32>,
     pub participant_id: Option<Uuid>,
-    pub challenge_id: Option<Uuid>,
+    pub challenge_id: Option<i32>, // Now integer for temporal challenges
     pub waypoint_id: Option<i32>,
     pub event_data: Option<JsonValue>,
     pub outcome: Option<String>,
@@ -150,7 +150,7 @@ impl AuditLogEntry {
         self
     }
 
-    pub fn with_challenge_id(mut self, challenge_id: Uuid) -> Self {
+    pub fn with_challenge_id(mut self, challenge_id: i32) -> Self {
         self.challenge_id = Some(challenge_id);
         self
     }
@@ -180,7 +180,7 @@ impl AuditLogEntry {
 #[derive(Debug, Clone)]
 pub struct WaypointCheckInParams {
     pub participant_id: Uuid,
-    pub challenge_id: Uuid,
+    pub challenge_id: i32, // Now integer for temporal challenges
     pub waypoint_id: i32,
     pub waypoint_sequence: i32,
     pub location_lat: f64,
@@ -193,7 +193,7 @@ pub struct WaypointCheckInParams {
 #[derive(Debug, Clone)]
 pub struct WaypointVerificationParams<'a> {
     pub participant_id: Uuid,
-    pub challenge_id: Uuid,
+    pub challenge_id: i32, // Now integer for temporal challenges
     pub waypoint_id: i32,
     pub waypoint_sequence: i32,
     pub verification_result: &'a str,
@@ -288,7 +288,7 @@ impl AuditLog {
     pub async fn log_challenge_created(
         pool: &PgPool,
         user_id: i32,
-        challenge_id: Uuid,
+        challenge_id: i32, // Now integer for temporal challenges
         challenge_name: &str,
         challenge_type: &str,
         waypoint_count: i32,
@@ -315,7 +315,7 @@ impl AuditLog {
     pub async fn log_challenge_started(
         pool: &PgPool,
         user_id: i32,
-        challenge_id: Uuid,
+        challenge_id: i32, // Now integer for temporal challenges
         challenge_name: &str,
         participant_count: i32,
         planned_start_time: DateTime<Utc>,
@@ -344,7 +344,7 @@ impl AuditLog {
         pool: &PgPool,
         moderator_id: i32,
         participant_id: Uuid,
-        challenge_id: Uuid,
+        challenge_id: i32, // Now integer for temporal challenges
         invited_user_id: i32,
         participant_nickname: Option<&str>,
     ) -> Result<AuditLog, AuditError> {
@@ -401,7 +401,7 @@ impl AuditLog {
     pub async fn log_waypoint_proof_submitted(
         pool: &PgPool,
         participant_id: Uuid,
-        challenge_id: Uuid,
+        challenge_id: i32, // Now integer for temporal challenges
         waypoint_id: i32,
         waypoint_sequence: i32,
         image_path: &str,
@@ -457,7 +457,7 @@ impl AuditLog {
     pub async fn log_location_updated(
         pool: &PgPool,
         participant_id: Uuid,
-        challenge_id: Uuid,
+        challenge_id: i32, // Now integer for temporal challenges
         location_lat: f64,
         location_lon: f64,
         accuracy_meters: Option<f64>,
@@ -485,7 +485,7 @@ impl AuditLog {
     #[allow(dead_code)]
     pub async fn get_challenge_logs(
         pool: &PgPool,
-        challenge_id: Uuid,
+        challenge_id: i32, // Now integer for temporal challenges
         limit: Option<i64>,
     ) -> Result<Vec<AuditLog>, AuditError> {
         let limit = limit.unwrap_or(100);

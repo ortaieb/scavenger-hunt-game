@@ -47,10 +47,15 @@ impl LocationService {
     /// Validate if a location is within the allowed radius of a waypoint
     pub async fn validate_waypoint_location(
         &self,
-        waypoint_id: i32,
-        user_location: &GeoLocation,
+        _waypoint_id: i32,
+        _user_location: &GeoLocation,
     ) -> Result<LocationValidationResult, LocationError> {
-        // Get waypoint details
+        // TODO: Update for temporal challenge system - waypoints are now embedded in challenge JSON
+        // Temporarily return error until waypoint system is redesigned
+        Err(LocationError::WaypointNotFound)
+
+        /*
+        // OLD CODE - waypoints table no longer exists
         let waypoint = sqlx::query!(
             r#"
             SELECT location_lat, location_lon, radius_meters
@@ -62,7 +67,10 @@ impl LocationService {
         .fetch_optional(&self.pool)
         .await?
         .ok_or(LocationError::WaypointNotFound)?;
+        */
 
+        /*
+        // OLD CODE continued - commented out since waypoints table no longer exists
         let target_location = GeoLocation {
             lat: waypoint.location_lat,
             lon: waypoint.location_lon,
@@ -84,6 +92,7 @@ impl LocationService {
             distance_meters: distance,
             max_distance_meters: waypoint.radius_meters,
         })
+        */
     }
 
     /// Calculate distance between two GPS coordinates using Haversine formula

@@ -2,7 +2,6 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
-use uuid::Uuid;
 
 use crate::auth::{AuthError, JwtService};
 use crate::models::user::{CreateUserRequest, LoginRequest, User, UserError};
@@ -26,7 +25,7 @@ pub struct ParticipantAuthResponse {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ParticipantTokenRequest {
     #[serde(rename = "challenge-id")]
-    pub challenge_id: Uuid,
+    pub challenge_id: i32, // Now integer for temporal challenges
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -114,7 +113,7 @@ impl AuthService {
     pub async fn create_participant_token(
         &self,
         user_id: i32,
-        challenge_id: Uuid,
+        challenge_id: i32, // Now integer for temporal challenges
     ) -> Result<ParticipantAuthResponse, AuthServiceError> {
         // Check if user is invited to the challenge
         let participant = sqlx::query!(
@@ -130,12 +129,14 @@ impl AuthService {
         .await?
         .ok_or(AuthServiceError::UserNotInvited)?;
 
-        // Get challenge details
+        // Get challenge details from temporal_challenges
         let challenge = sqlx::query!(
             r#"
-            SELECT challenge_id, planned_start_time, duration_minutes, active
-            FROM challenges 
-            WHERE challenge_id = $1
+            SELECT challenge_id, planned_start_time, 
+                   (challenge->>'duration_minutes')::integer as duration_minutes,
+                   (challenge->>'active')::boolean as active
+            FROM temporal_challenges 
+            WHERE challenge_id = $1 AND end_at IS NULL
             "#,
             challenge_id
         )
@@ -149,7 +150,7 @@ impl AuthService {
 
         // Calculate challenge end time
         let planned_start = challenge.planned_start_time;
-        let duration = challenge.duration_minutes;
+        let duration = challenge.duration_minutes.unwrap_or(60); // Default 60 minutes if null
         let challenge_end_time = planned_start + chrono::Duration::minutes(duration as i64);
 
         // Get user roles
@@ -257,12 +258,9 @@ mod tests {
 
     #[test]
     fn test_participant_token_request_deserialization() {
-        let json = r#"{"challenge-id": "550e8400-e29b-41d4-a716-446655440000"}"#;
+        let json = r#"{"challenge-id": 123}"#;
         let request: ParticipantTokenRequest = serde_json::from_str(json).unwrap();
 
-        assert_eq!(
-            request.challenge_id.to_string(),
-            "550e8400-e29b-41d4-a716-446655440000"
-        );
+        assert_eq!(request.challenge_id, 123);
     }
 }

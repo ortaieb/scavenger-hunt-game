@@ -11,9 +11,16 @@ use tower_http::{
 
 use crate::auth::jwt_middleware;
 use crate::handlers::{
-    check_in_waypoint, create_challenge, create_participant_token, get_challenge,
-    health_check_handler, invite_participant, login_user, register_user, start_challenge,
-    submit_waypoint_proof,
+    create_challenge,
+    create_participant_token,
+    get_challenge,
+    health_check_handler,
+    invite_participant,
+    login_user,
+    register_user,
+    start_challenge,
+    // TODO: Re-enable waypoint handlers after updating for temporal challenge system
+    // check_in_waypoint, submit_waypoint_proof,
 };
 use crate::routes::AppState;
 
@@ -39,26 +46,28 @@ pub fn create_api_router(state: AppState) -> Router {
             jwt_middleware,
         ));
 
+    // TODO: Re-enable waypoint routes after updating for temporal challenge system
     // Protected participant routes (require participant authentication)
-    let protected_participant_routes = Router::new()
-        .route(
-            "/challenges/waypoints/:waypoint_id/checkin",
-            post(check_in_waypoint),
-        )
-        .route(
-            "/challenges/waypoints/:waypoint_id/proof",
-            post(submit_waypoint_proof),
-        )
-        .layer(middleware::from_fn_with_state(
-            state.auth_state.clone(),
-            jwt_middleware,
-        ));
+    // let protected_participant_routes = Router::new()
+    //     .route(
+    //         "/challenges/waypoints/:waypoint_id/checkin",
+    //         post(check_in_waypoint),
+    //     )
+    //     .route(
+    //         "/challenges/waypoints/:waypoint_id/proof",
+    //         post(submit_waypoint_proof),
+    //     )
+    //     .layer(middleware::from_fn_with_state(
+    //         state.auth_state.clone(),
+    //         jwt_middleware,
+    //     ));
 
     // Combine all routes
     let api_routes = Router::new()
         .merge(public_routes)
         .merge(protected_user_routes)
-        .merge(protected_participant_routes)
+        // TODO: Re-enable after updating waypoint handlers
+        // .merge(protected_participant_routes)
         .with_state(state);
 
     // Apply middleware
