@@ -253,30 +253,30 @@ impl User {
         if email.len() <= 5 {
             return false;
         }
-        
+
         let at_count = email.matches('@').count();
         if at_count != 1 {
             return false;
         }
-        
+
         let parts: Vec<&str> = email.split('@').collect();
         if parts.len() != 2 {
             return false;
         }
-        
+
         let local = parts[0];
         let domain = parts[1];
-        
+
         // Local part must not be empty
         if local.is_empty() {
             return false;
         }
-        
+
         // Domain must contain a dot and not be empty
         if domain.is_empty() || !domain.contains('.') {
             return false;
         }
-        
+
         // Domain must have at least one character before and after the dot
         let domain_parts: Vec<&str> = domain.split('.').collect();
         domain_parts.len() >= 2 && domain_parts.iter().all(|part| !part.is_empty())

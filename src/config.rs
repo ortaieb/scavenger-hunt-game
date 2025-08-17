@@ -85,17 +85,14 @@ mod tests {
     fn test_config_from_env_invalid_jwt_secret() {
         // Store original JWT secret
         let original_jwt_secret = env::var("JWT_SECRET").ok();
-        
+
         // Set an invalid JWT secret (too short)
         env::set_var("JWT_SECRET", "short");
-        
+
         let result = Config::from_env();
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            ConfigError::InvalidValue(_)
-        ));
-        
+        assert!(matches!(result.unwrap_err(), ConfigError::InvalidValue(_)));
+
         // Restore original value
         if let Some(jwt_secret) = original_jwt_secret {
             env::set_var("JWT_SECRET", jwt_secret);

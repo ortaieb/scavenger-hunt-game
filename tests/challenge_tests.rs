@@ -1,5 +1,5 @@
 use axum::{
-    body::{Body, to_bytes},
+    body::{to_bytes, Body},
     http::{self, Request, StatusCode},
 };
 use serde_json::{json, Value};
@@ -11,9 +11,10 @@ use uuid::Uuid;
 use scavenger_hunt_game_server::{
     auth::{AuthState, JwtService},
     config::Config,
-    create_api_router, create_connection_pool, run_migrations,
+    create_api_router, create_connection_pool,
     models::challenge::ChallengeType,
     routes::AppState,
+    run_migrations,
     services::{AuthService, ImageService, LocationService},
 };
 
